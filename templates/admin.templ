@@ -1,0 +1,154 @@
+package templates
+
+import "fmt"
+
+type AdminPageData struct {
+	Error string
+	Zones []ZoneData
+}
+
+type ZoneData struct {
+	Name    string
+	Records []DNSRecord
+}
+
+type DNSRecord struct {
+	ID       string
+	Name     string
+	Type     string
+	Value    string
+	TTL      int
+	Priority int
+}
+
+templ AdminPage(data AdminPageData) {
+	<!doctype html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>DNS Admin</title>
+			<link rel="stylesheet" href="/static/admin.css"/>
+			<script>
+				(() => {
+				  const saved = localStorage.getItem("theme");
+				  const defaultTheme = saved || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+				  document.documentElement.setAttribute("data-theme", defaultTheme);
+				  window.toggleTheme = () => {
+				    const current = document.documentElement.getAttribute("data-theme") || "light";
+				    const next = current === "light" ? "dark" : "light";
+				    document.documentElement.setAttribute("data-theme", next);
+				    localStorage.setItem("theme", next);
+				    const label = document.getElementById("theme-label");
+				    if (label) label.textContent = next === "light" ? "Dark Mode" : "Light Mode";
+				  };
+				  window.addEventListener("DOMContentLoaded", () => {
+				    const current = document.documentElement.getAttribute("data-theme") || "light";
+				    const label = document.getElementById("theme-label");
+				    if (label) label.textContent = current === "light" ? "Dark Mode" : "Light Mode";
+				  });
+				})();
+			</script>
+		</head>
+		<body>
+			@Header()
+			@ZoneCreate()
+			if data.Error != "" {
+				@ErrorBox(data.Error)
+			}
+			if len(data.Zones) == 0 {
+				<section class="panel empty">No zones yet.</section>
+			}
+			for _, zone := range data.Zones {
+				@ZonePanel(zone)
+			}
+		</body>
+	</html>
+}
+
+templ Header() {
+	<header class="topbar">
+		<div>
+			<h1>DNS Admin Panel</h1>
+			<div class="subtle">Zones and DNS records</div>
+		</div>
+		<button class="theme-btn" type="button" onclick="toggleTheme()"><span id="theme-label">Theme</span></button>
+	</header>
+}
+
+templ ZoneCreate() {
+	<section class="panel">
+		<h2>Create Zone</h2>
+		<form method="post" action="/admin/zones">
+			<div class="grid">
+				<input type="text" name="name" placeholder="example.com" required/>
+				<button type="submit">Create</button>
+			</div>
+		</form>
+	</section>
+}
+
+templ ErrorBox(message string) {
+	<div class="error">{ message }</div>
+}
+
+templ ZonePanel(zone ZoneData) {
+	<section class="panel">
+		<div class="zone-head">
+			<h2>{ zone.Name }</h2>
+			<form method="post" action={ fmt.Sprintf("/admin/zones/%s/delete", zonePathSegment(zone.Name)) }>
+				<button class="btn-delete" type="submit">Delete Zone</button>
+			</form>
+		</div>
+		<h3>Records</h3>
+		<table>
+			<thead>
+				<tr>
+					<th>Name</th>
+					<th>Type</th>
+					<th>Value</th>
+					<th>TTL</th>
+					<th>Priority</th>
+					<th>Action</th>
+				</tr>
+			</thead>
+			<tbody>
+				if len(zone.Records) == 0 {
+					<tr><td colspan="6" class="subtle">No records yet.</td></tr>
+				}
+				for _, record := range zone.Records {
+					<tr>
+						<td>{ record.Name }</td>
+						<td>{ record.Type }</td>
+						<td>{ record.Value }</td>
+						<td>{ fmt.Sprintf("%d", record.TTL) }</td>
+						<td>{ fmt.Sprintf("%d", record.Priority) }</td>
+						<td>
+							<form method="post" action={ fmt.Sprintf("/admin/zones/%s/records/%s/delete", zonePathSegment(zone.Name), recordPathSegment(record.ID)) }>
+								<button class="btn-delete" type="submit">Delete</button>
+							</form>
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+		<h3 style="margin-top:16px;">Add Record</h3>
+		<form method="post" action={ fmt.Sprintf("/admin/zones/%s/records", zonePathSegment(zone.Name)) }>
+			<div class="grid">
+				<input name="name" placeholder="@ / api / mail" required/>
+				<select name="type" required>
+					<option value="A">A</option>
+					<option value="AAAA">AAAA</option>
+					<option value="CNAME">CNAME</option>
+					<option value="MX">MX</option>
+					<option value="TXT">TXT</option>
+					<option value="NS">NS</option>
+				</select>
+				<input name="value" placeholder="value (IP/host/text)" required/>
+				<input name="ttl" type="number" min="1" value="300" required/>
+				<input name="priority" type="number" min="0" value="0"/>
+				<button type="submit">Add</button>
+			</div>
+		</form>
+	</section>
+}
