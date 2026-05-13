@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"net/url"
+	"strings"
 
 	"github.com/a-h/templ"
 	view "github.com/fmotalleb/helios/templates"
@@ -16,9 +17,9 @@ type handler struct {
 }
 
 type createZoneRequest struct {
-	Name        string `form:"name"`
-	ForwardZone string `form:"forward_zone"`
-	CacheTTL    int    `form:"cache_ttl"`
+	Name             string `form:"name"`
+	ForwardSelection string `form:"forward_selection"`
+	CacheTTL         int    `form:"cache_ttl"`
 }
 
 type createRecordRequest struct {
@@ -30,8 +31,17 @@ type createRecordRequest struct {
 }
 
 type updateZoneConfigRequest struct {
-	ForwardZone string `form:"forward_zone"`
-	CacheTTL    int    `form:"cache_ttl"`
+	ForwardSelection string `form:"forward_selection"`
+	CacheTTL         int    `form:"cache_ttl"`
+}
+
+type createForwardZoneRequest struct {
+	Name    string `form:"name"`
+	Address string `form:"address"`
+}
+
+type updateFallbackRequest struct {
+	FallbackForwardZoneID string `form:"fallback_forward_zone_id"`
 }
 
 type inboundRequest struct {
@@ -62,11 +72,21 @@ func (h *handler) dashboard(ctx *gofr.Context) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	forwardZones, err := h.repo.listForwardZones(ctx)
+	if err != nil {
+		return nil, err
+	}
+	fallbackID, err := h.repo.getFallbackForwardZoneID(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	return renderComponent(view.AdminPage(view.AdminPageData{
-		Error:   ctx.Request.Param("error"),
-		Zones:   viewZones,
-		Inbound: inbound,
+		Error:                 ctx.Request.Param("error"),
+		Zones:                 viewZones,
+		Inbound:               inbound,
+		ForwardZones:          forwardZones,
+		FallbackForwardZoneID: fallbackID,
 	}))
 }
 
@@ -76,7 +96,8 @@ func (h *handler) createZone(ctx *gofr.Context) (any, error) {
 		return response.Redirect{URL: "/admin?error=invalid+zone+payload"}, nil
 	}
 
-	if err := h.repo.createZone(ctx, req.Name, req.ForwardZone, req.CacheTTL); err != nil {
+	mode, forwardID := parseForwardSelection(req.ForwardSelection)
+	if err := h.repo.createZone(ctx, req.Name, mode, forwardID, req.CacheTTL); err != nil {
 		return response.Redirect{URL: "/admin?error=" + url.QueryEscape(err.Error())}, nil
 	}
 
@@ -125,7 +146,8 @@ func (h *handler) updateZoneConfig(ctx *gofr.Context) (any, error) {
 	if err := ctx.Request.Bind(&req); err != nil {
 		return response.Redirect{URL: "/admin?error=invalid+zone+config+payload"}, nil
 	}
-	if err := h.repo.updateZoneConfig(ctx, ctx.Request.PathParam("zone"), req.ForwardZone, req.CacheTTL); err != nil {
+	mode, forwardID := parseForwardSelection(req.ForwardSelection)
+	if err := h.repo.updateZoneConfig(ctx, ctx.Request.PathParam("zone"), mode, forwardID, req.CacheTTL); err != nil {
 		return response.Redirect{URL: "/admin?error=" + url.QueryEscape(err.Error())}, nil
 	}
 	return response.Redirect{URL: "/admin"}, nil
@@ -153,6 +175,53 @@ func (h *handler) updateInbound(ctx *gofr.Context) (any, error) {
 		return response.Redirect{URL: "/admin?error=" + url.QueryEscape(err.Error())}, nil
 	}
 	return response.Redirect{URL: "/admin"}, nil
+}
+
+func (h *handler) createForwardZone(ctx *gofr.Context) (any, error) {
+	var req createForwardZoneRequest
+	if err := ctx.Request.Bind(&req); err != nil {
+		return response.Redirect{URL: "/admin?error=invalid+forward+zone+payload"}, nil
+	}
+	if err := h.repo.createForwardZone(ctx, req.Name, req.Address); err != nil {
+		return response.Redirect{URL: "/admin?error=" + url.QueryEscape(err.Error())}, nil
+	}
+	return response.Redirect{URL: "/admin"}, nil
+}
+
+func (h *handler) deleteForwardZone(ctx *gofr.Context) (any, error) {
+	if err := h.repo.deleteForwardZone(ctx, ctx.Request.PathParam("id")); err != nil {
+		return response.Redirect{URL: "/admin?error=" + url.QueryEscape(err.Error())}, nil
+	}
+	return response.Redirect{URL: "/admin"}, nil
+}
+
+func (h *handler) updateFallbackForwardZone(ctx *gofr.Context) (any, error) {
+	var req updateFallbackRequest
+	if err := ctx.Request.Bind(&req); err != nil {
+		return response.Redirect{URL: "/admin?error=invalid+fallback+payload"}, nil
+	}
+	if err := h.repo.updateFallbackForwardZone(ctx, req.FallbackForwardZoneID); err != nil {
+		return response.Redirect{URL: "/admin?error=" + url.QueryEscape(err.Error())}, nil
+	}
+	return response.Redirect{URL: "/admin"}, nil
+}
+
+func parseForwardSelection(selection string) (mode string, forwardZoneID string) {
+	selection = strings.TrimSpace(selection)
+	switch {
+	case selection == "", selection == "default":
+		return "default", ""
+	case selection == "none":
+		return "none", ""
+	case strings.HasPrefix(selection, "id:"):
+		id := strings.TrimSpace(strings.TrimPrefix(selection, "id:"))
+		if id == "" {
+			return "default", ""
+		}
+		return "custom", id
+	default:
+		return "default", ""
+	}
 }
 
 func renderComponent(component templ.Component) (any, error) {

@@ -1,16 +1,20 @@
 package templates
 
 type AdminPageData struct {
-	Error   string
-	Zones   []ZoneData
-	Inbound InboundSettings
+	Error                 string
+	Zones                 []ZoneData
+	Inbound               InboundSettings
+	ForwardZones          []ForwardZoneOption
+	FallbackForwardZoneID string
 }
 
 type ZoneData struct {
-	Name        string
-	ForwardZone string
-	CacheTTL    int
-	Records     []DNSRecord
+	Name          string
+	ForwardMode   string
+	ForwardZoneID string
+	ForwardLabel  string
+	CacheTTL      int
+	Records       []DNSRecord
 }
 
 type DNSRecord struct {
@@ -35,6 +39,12 @@ type InboundSettings struct {
 	HTTPSPort          int
 	HTTPSPublicKey     string
 	HTTPSPrivateKey    string
+}
+
+type ForwardZoneOption struct {
+	ID      string
+	Name    string
+	Address string
 }
 
 templ AdminPage(data AdminPageData) {
@@ -83,7 +93,8 @@ templ AdminPage(data AdminPageData) {
 		<body>
 			@Header()
 			@InboundPanel(data.Inbound)
-			@ZoneCreate()
+			@ForwardZonesPanel(data.ForwardZones, data.FallbackForwardZoneID)
+			@ZoneCreate(data.ForwardZones, data.FallbackForwardZoneID)
 			if data.Error != "" {
 				@ErrorBox(data.Error)
 			}
@@ -93,7 +104,7 @@ templ AdminPage(data AdminPageData) {
 			for _, zone := range data.Zones {
 				@ZoneRow(zone)
 				@ZoneRecordsModal(zone)
-				@ZoneConfigModal(zone)
+				@ZoneConfigModal(zone, data.ForwardZones, data.FallbackForwardZoneID)
 			}
 		</body>
 	</html>

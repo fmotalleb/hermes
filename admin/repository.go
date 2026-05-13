@@ -20,6 +20,9 @@ const (
 	cacheTTL              = 30 * time.Second
 	topicDNSRecordChanges = "dns-record-changes"
 	defaultTTL            = 300
+	forwardModeDefault    = "default"
+	forwardModeNone       = "none"
+	forwardModeCustom     = "custom"
 )
 
 var (
@@ -48,9 +51,15 @@ func (r *repository) listZones(ctx *gofr.Context) ([]view.ZoneData, error) {
 		}
 	}
 
+	fallbackID, err := r.getFallbackForwardZoneID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	const query = `
-SELECT z.name, COALESCE(z.forward_zone, ''), COALESCE(z.cache_ttl, 300), r.id::text, COALESCE(r.name, ''), COALESCE(r.type, ''), COALESCE(r.value, ''), COALESCE(r.ttl, 0), COALESCE(r.priority, 0)
+SELECT z.name, COALESCE(z.forward_mode, 'default'), COALESCE(z.forward_zone_id::text, ''), COALESCE(fz.name || ' (' || fz.address || ')', ''), COALESCE(z.cache_ttl, 300), r.id::text, COALESCE(r.name, ''), COALESCE(r.type, ''), COALESCE(r.value, ''), COALESCE(r.ttl, 0), COALESCE(r.priority, 0)
 FROM zones z
+LEFT JOIN forward_zones fz ON fz.id = z.forward_zone_id
 LEFT JOIN records r ON r.zone_id = z.id
 ORDER BY z.name ASC, r.id ASC`
 
@@ -65,23 +74,46 @@ ORDER BY z.name ASC, r.id ASC`
 
 	for rows.Next() {
 		var (
-			zoneName    string
-			forwardZone string
-			cacheTTL    int
-			recordID    sql.NullString
-			recName     string
-			recType     string
-			recValue    string
-			recTTL      int
-			priority    int
+			zoneName       string
+			forwardMode    string
+			forwardZoneID  string
+			forwardLabelDB string
+			cacheTTL       int
+			recordID       sql.NullString
+			recName        string
+			recType        string
+			recValue       string
+			recTTL         int
+			priority       int
 		)
-		if scanErr := rows.Scan(&zoneName, &forwardZone, &cacheTTL, &recordID, &recName, &recType, &recValue, &recTTL, &priority); scanErr != nil {
+		if scanErr := rows.Scan(&zoneName, &forwardMode, &forwardZoneID, &forwardLabelDB, &cacheTTL, &recordID, &recName, &recType, &recValue, &recTTL, &priority); scanErr != nil {
 			return nil, scanErr
 		}
 
 		idx, ok := byName[zoneName]
 		if !ok {
-			zones = append(zones, view.ZoneData{Name: zoneName, ForwardZone: forwardZone, CacheTTL: cacheTTL, Records: make([]view.DNSRecord, 0)})
+			forwardLabel := "None"
+			switch forwardMode {
+			case forwardModeDefault:
+				if fallbackID == "" {
+					forwardLabel = "Default fallback: None"
+				} else {
+					forwardLabel = "Default fallback"
+				}
+			case forwardModeCustom:
+				if forwardLabelDB != "" {
+					forwardLabel = forwardLabelDB
+				}
+			}
+
+			zones = append(zones, view.ZoneData{
+				Name:          zoneName,
+				ForwardMode:   forwardMode,
+				ForwardZoneID: forwardZoneID,
+				ForwardLabel:  forwardLabel,
+				CacheTTL:      cacheTTL,
+				Records:       make([]view.DNSRecord, 0),
+			})
 			idx = len(zones) - 1
 			byName[zoneName] = idx
 		}
@@ -107,18 +139,25 @@ ORDER BY z.name ASC, r.id ASC`
 	return zones, nil
 }
 
-func (r *repository) createZone(ctx *gofr.Context, name, forwardZone string, cacheTTL int) error {
+func (r *repository) createZone(ctx *gofr.Context, name, forwardMode, forwardZoneID string, cacheTTL int) error {
 	zone := normalizeZone(name)
 	if zone == "" {
 		return errors.New("zone is required")
 	}
-	forwardZone = strings.TrimSpace(forwardZone)
+	forwardMode = normalizeForwardMode(forwardMode)
+	forwardZoneID = strings.TrimSpace(forwardZoneID)
 	if cacheTTL < 0 {
 		return errors.New("cache ttl must be non-negative")
 	}
+	if forwardMode == forwardModeCustom && forwardZoneID == "" {
+		return errors.New("forward zone is required for custom mode")
+	}
+	if forwardMode != forwardModeCustom {
+		forwardZoneID = ""
+	}
 
-	const query = `INSERT INTO zones (name, forward_zone, cache_ttl) VALUES ($1, $2, $3)`
-	if _, err := ctx.SQL.ExecContext(ctx, query, zone, forwardZone, cacheTTL); err != nil {
+	const query = `INSERT INTO zones (name, forward_mode, forward_zone_id, cache_ttl) VALUES ($1, $2, NULLIF($3, ''), $4)`
+	if _, err := ctx.SQL.ExecContext(ctx, query, zone, forwardMode, forwardZoneID, cacheTTL); err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "duplicate") || strings.Contains(strings.ToLower(err.Error()), "unique") {
 			return errZoneExists
 		}
@@ -152,14 +191,22 @@ func (r *repository) deleteZone(ctx *gofr.Context, name string) error {
 	return nil
 }
 
-func (r *repository) updateZoneConfig(ctx *gofr.Context, name, forwardZone string, cacheTTL int) error {
+func (r *repository) updateZoneConfig(ctx *gofr.Context, name, forwardMode, forwardZoneID string, cacheTTL int) error {
 	zone := normalizeZone(name)
-	forwardZone = strings.TrimSpace(forwardZone)
+	forwardMode = normalizeForwardMode(forwardMode)
+	forwardZoneID = strings.TrimSpace(forwardZoneID)
 	if cacheTTL < 0 {
 		return errors.New("cache ttl must be non-negative")
 	}
-	const query = `UPDATE zones SET forward_zone = $2, cache_ttl = $3 WHERE name = $1`
-	res, err := ctx.SQL.ExecContext(ctx, query, zone, forwardZone, cacheTTL)
+	if forwardMode == forwardModeCustom && forwardZoneID == "" {
+		return errors.New("forward zone is required for custom mode")
+	}
+	if forwardMode != forwardModeCustom {
+		forwardZoneID = ""
+	}
+
+	const query = `UPDATE zones SET forward_mode = $2, forward_zone_id = NULLIF($3, ''), cache_ttl = $4 WHERE name = $1`
+	res, err := ctx.SQL.ExecContext(ctx, query, zone, forwardMode, forwardZoneID, cacheTTL)
 	if err != nil {
 		return err
 	}
@@ -247,6 +294,57 @@ WHERE r.id = $1 AND r.zone_id = z.id AND z.name = $2`
 	return nil
 }
 
+func (r *repository) listForwardZones(ctx *gofr.Context) ([]view.ForwardZoneOption, error) {
+	const query = `SELECT id::text, name, address FROM forward_zones ORDER BY name ASC`
+	rows, err := ctx.SQL.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]view.ForwardZoneOption, 0)
+	for rows.Next() {
+		var opt view.ForwardZoneOption
+		if scanErr := rows.Scan(&opt.ID, &opt.Name, &opt.Address); scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, opt)
+	}
+
+	return out, rows.Err()
+}
+
+func (r *repository) createForwardZone(ctx *gofr.Context, name, address string) error {
+	name = strings.TrimSpace(name)
+	address = strings.TrimSpace(address)
+	if name == "" || address == "" {
+		return errors.New("forward zone name and address are required")
+	}
+	const query = `INSERT INTO forward_zones (name, address) VALUES ($1, $2)`
+	_, err := ctx.SQL.ExecContext(ctx, query, name, address)
+	return err
+}
+
+func (r *repository) deleteForwardZone(ctx *gofr.Context, id string) error {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return errors.New("forward zone not found")
+	}
+	const query = `DELETE FROM forward_zones WHERE id = $1`
+	res, err := ctx.SQL.ExecContext(ctx, query, id)
+	if err != nil {
+		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return errors.New("forward zone not found")
+	}
+	return nil
+}
+
 func (r *repository) getInboundSettings(ctx *gofr.Context) (view.InboundSettings, error) {
 	const query = `SELECT udp_listen_address, udp_port, tcp_listen_address, tcp_port, tls_listen_address, tls_port, tls_public_key, tls_private_key, https_listen_address, https_port, https_public_key, https_private_key FROM inbound_settings LIMIT 1`
 	var in view.InboundSettings
@@ -265,6 +363,26 @@ func (r *repository) getInboundSettings(ctx *gofr.Context) (view.InboundSettings
 		}, nil
 	}
 	return view.InboundSettings{}, err
+}
+
+func (r *repository) getFallbackForwardZoneID(ctx *gofr.Context) (string, error) {
+	const query = `SELECT COALESCE(fallback_forward_zone_id::text, '') FROM inbound_settings WHERE id = 1`
+	var id string
+	err := ctx.SQL.QueryRowContext(ctx, query).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
+func (r *repository) updateFallbackForwardZone(ctx *gofr.Context, id string) error {
+	id = strings.TrimSpace(id)
+	const query = `UPDATE inbound_settings SET fallback_forward_zone_id = NULLIF($1, '') WHERE id = 1`
+	_, err := ctx.SQL.ExecContext(ctx, query, id)
+	return err
 }
 
 func (r *repository) updateInboundSettings(ctx *gofr.Context, in view.InboundSettings) error {
@@ -329,6 +447,17 @@ func (r *repository) invalidateAndPublish(ctx *gofr.Context, event string) {
 
 func normalizeZone(zone string) string {
 	return strings.TrimSuffix(strings.ToLower(strings.TrimSpace(zone)), ".")
+}
+
+func normalizeForwardMode(mode string) string {
+	switch strings.TrimSpace(strings.ToLower(mode)) {
+	case forwardModeNone:
+		return forwardModeNone
+	case forwardModeCustom:
+		return forwardModeCustom
+	default:
+		return forwardModeDefault
+	}
 }
 
 func validateRecordByType(recordType, value string) error {

@@ -1,0 +1,42 @@
+package templates
+
+templ ForwardZonesPanel(options []ForwardZoneOption, fallbackForwardZoneID string) {
+	<section class="panel">
+		<h2>Forward Zones</h2>
+		<form method="post" action="/admin/forward-zones" class="grid">
+			<input name="name" placeholder="Provider Name (e.g. Cloudflare)" required/>
+			<input name="address" placeholder="Resolver Address (e.g. 1.1.1.1 or dns.google)" required/>
+			<button type="submit">Add Forward Zone</button>
+		</form>
+		<form method="post" action="/admin/forward-zones/fallback" class="grid" style="margin-top:10px;">
+			<select name="fallback_forward_zone_id">
+				<option value="" selected?={ fallbackForwardZoneID == "" }>None (no recursive fallback)</option>
+				for _, opt := range options {
+					<option value={ opt.ID } selected?={ fallbackForwardZoneID == opt.ID }>{ opt.Name + " (" + opt.Address + ")" }</option>
+				}
+			</select>
+			<button type="submit">Save Fallback</button>
+		</form>
+		if len(options) > 0 {
+			<table style="margin-top:10px;">
+				<thead>
+					<tr><th>Name</th><th>Address</th><th>Action</th></tr>
+				</thead>
+				<tbody>
+					for _, opt := range options {
+						<tr>
+							<td>{ opt.Name }</td>
+							<td>{ opt.Address }</td>
+							<td>
+								<form method="post" action={ "/admin/forward-zones/" + recordPathSegment(opt.ID) + "/delete" }>
+									<button class="btn-delete" type="submit">Delete</button>
+								</form>
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+	</section>
+}
+

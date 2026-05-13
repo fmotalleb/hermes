@@ -2,13 +2,19 @@ package templates
 
 import "fmt"
 
-templ ZoneCreate() {
+templ ZoneCreate(options []ForwardZoneOption, fallbackForwardZoneID string) {
 	<section class="panel">
 		<h2>Create Zone</h2>
 		<form method="post" action="/admin/zones">
 			<div class="grid">
 				<input type="text" name="name" placeholder="example.com" required/>
-				<input type="text" name="forward_zone" placeholder="8.8.8.8 / dns.google"/>
+				<select name="forward_selection">
+					<option value="default">Default Fallback (not set per-zone)</option>
+					<option value="none">None (disable forwarding)</option>
+					for _, opt := range options {
+						<option value={ "id:" + opt.ID }>{ opt.Name + " (" + opt.Address + ")" }</option>
+					}
+				</select>
 				<input type="number" name="cache_ttl" min="0" value="300"/>
 				<button type="submit">Create</button>
 			</div>
@@ -21,7 +27,7 @@ templ ZoneRow(zone ZoneData) {
 		<div class="zone-row">
 			<div>
 				<div class="zone-title">{ zone.Name }</div>
-				<div class="subtle">Forward: { zone.ForwardZone } | Cache TTL: { fmt.Sprintf("%d", zone.CacheTTL) }s | Records: { fmt.Sprintf("%d", len(zone.Records)) }</div>
+				<div class="subtle">Forward: { zone.ForwardLabel } | Cache TTL: { fmt.Sprintf("%d", zone.CacheTTL) }s | Records: { fmt.Sprintf("%d", len(zone.Records)) }</div>
 			</div>
 			<div class="zone-actions">
 				<button type="button" data-open-modal={ fmt.Sprintf("zone-records-%s", zoneDOMID(zone.Name)) }>Records</button>
@@ -34,7 +40,7 @@ templ ZoneRow(zone ZoneData) {
 	</section>
 }
 
-templ ZoneConfigModal(zone ZoneData) {
+templ ZoneConfigModal(zone ZoneData, options []ForwardZoneOption, fallbackForwardZoneID string) {
 	<dialog id={ fmt.Sprintf("zone-config-%s", zoneDOMID(zone.Name)) } class="modal">
 		<div class="modal-head">
 			<h3>Zone Config - { zone.Name }</h3>
@@ -42,7 +48,13 @@ templ ZoneConfigModal(zone ZoneData) {
 		</div>
 		<form method="post" action={ fmt.Sprintf("/admin/zones/%s/config", zonePathSegment(zone.Name)) }>
 			<div class="grid">
-				<input name="forward_zone" placeholder="Forward Zone" value={ zone.ForwardZone }/>
+				<select name="forward_selection">
+					<option value="default" selected?={ zone.ForwardMode == "default" }>Default Fallback (not set per-zone)</option>
+					<option value="none" selected?={ zone.ForwardMode == "none" }>None (disable forwarding)</option>
+					for _, opt := range options {
+						<option value={ "id:" + opt.ID } selected?={ zone.ForwardMode == "custom" && zone.ForwardZoneID == opt.ID }>{ opt.Name + " (" + opt.Address + ")" }</option>
+					}
+				</select>
 				<input name="cache_ttl" type="number" min="0" value={ fmt.Sprintf("%d", zone.CacheTTL) }/>
 				<button type="submit">Save Zone Config</button>
 			</div>
