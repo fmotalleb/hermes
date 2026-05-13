@@ -9,16 +9,20 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 type AdminPageData struct {
-	Error   string
-	Zones   []ZoneData
-	Inbound InboundSettings
+	Error                 string
+	Zones                 []ZoneData
+	Entrypoints           []InboundEntrypoint
+	ForwardZones          []ForwardZoneOption
+	FallbackForwardZoneID string
 }
 
 type ZoneData struct {
-	Name        string
-	ForwardZone string
-	CacheTTL    int
-	Records     []DNSRecord
+	Name          string
+	ForwardMode   string
+	ForwardZoneID string
+	ForwardLabel  string
+	CacheTTL      int
+	Records       []DNSRecord
 }
 
 type DNSRecord struct {
@@ -30,19 +34,19 @@ type DNSRecord struct {
 	Priority int
 }
 
-type InboundSettings struct {
-	UDPListenAddress   string
-	UDPPort            int
-	TCPListenAddress   string
-	TCPPort            int
-	TLSListenAddress   string
-	TLSPort            int
-	TLSPublicKey       string
-	TLSPrivateKey      string
-	HTTPSListenAddress string
-	HTTPSPort          int
-	HTTPSPublicKey     string
-	HTTPSPrivateKey    string
+type InboundEntrypoint struct {
+	ID            string
+	Type          string
+	ListenAddress string
+	Port          int
+	PublicKey     string
+	PrivateKey    string
+}
+
+type ForwardZoneOption struct {
+	ID        string
+	Name      string
+	Addresses []string
 }
 
 func AdminPage(data AdminPageData) templ.Component {
@@ -66,7 +70,7 @@ func AdminPage(data AdminPageData) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>DNS Admin</title><link rel=\"stylesheet\" href=\"/static/admin.css\"><script>\n\t\t\t\t(() => {\n\t\t\t\t  const saved = localStorage.getItem(\"theme\");\n\t\t\t\t  const defaultTheme = saved || (window.matchMedia(\"(prefers-color-scheme: dark)\").matches ? \"dark\" : \"light\");\n\t\t\t\t  document.documentElement.setAttribute(\"data-theme\", defaultTheme);\n\t\t\t\t  window.toggleTheme = () => {\n\t\t\t\t    const current = document.documentElement.getAttribute(\"data-theme\") || \"light\";\n\t\t\t\t    const next = current === \"light\" ? \"dark\" : \"light\";\n\t\t\t\t    document.documentElement.setAttribute(\"data-theme\", next);\n\t\t\t\t    localStorage.setItem(\"theme\", next);\n\t\t\t\t    const label = document.getElementById(\"theme-label\");\n\t\t\t\t    if (label) label.textContent = next === \"light\" ? \"Dark Mode\" : \"Light Mode\";\n\t\t\t\t  };\n\t\t\t\t  window.addEventListener(\"DOMContentLoaded\", () => {\n\t\t\t\t    const current = document.documentElement.getAttribute(\"data-theme\") || \"light\";\n\t\t\t\t    const label = document.getElementById(\"theme-label\");\n\t\t\t\t    if (label) label.textContent = current === \"light\" ? \"Dark Mode\" : \"Light Mode\";\n\t\t\t\t    document.querySelectorAll(\"[data-open-modal]\").forEach((btn) => {\n\t\t\t\t      btn.addEventListener(\"click\", () => {\n\t\t\t\t        const id = btn.getAttribute(\"data-open-modal\");\n\t\t\t\t        const el = document.getElementById(id);\n\t\t\t\t        if (el && typeof el.showModal === \"function\") el.showModal();\n\t\t\t\t      });\n\t\t\t\t    });\n\t\t\t\t    document.querySelectorAll(\"[data-close-modal]\").forEach((btn) => {\n\t\t\t\t      btn.addEventListener(\"click\", () => {\n\t\t\t\t        const id = btn.getAttribute(\"data-close-modal\");\n\t\t\t\t        const el = document.getElementById(id);\n\t\t\t\t        if (el && typeof el.close === \"function\") el.close();\n\t\t\t\t      });\n\t\t\t\t    });\n\t\t\t\t  });\n\t\t\t\t})();\n\t\t\t</script></head><body>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>DNS Admin</title><link rel=\"stylesheet\" href=\"/static/admin.css\"><script>\n\t\t\t\t(() => {\n\t\t\t\t  const saved = localStorage.getItem(\"theme\");\n\t\t\t\t  const defaultTheme = saved || (window.matchMedia(\"(prefers-color-scheme: dark)\").matches ? \"dark\" : \"light\");\n\t\t\t\t  document.documentElement.setAttribute(\"data-theme\", defaultTheme);\n\t\t\t\t  window.toggleTheme = () => {\n\t\t\t\t    const current = document.documentElement.getAttribute(\"data-theme\") || \"light\";\n\t\t\t\t    const next = current === \"light\" ? \"dark\" : \"light\";\n\t\t\t\t    document.documentElement.setAttribute(\"data-theme\", next);\n\t\t\t\t    localStorage.setItem(\"theme\", next);\n\t\t\t\t    const label = document.getElementById(\"theme-label\");\n\t\t\t\t    if (label) label.textContent = next === \"light\" ? \"Dark Mode\" : \"Light Mode\";\n\t\t\t\t  };\n\t\t\t\t  window.addEventListener(\"DOMContentLoaded\", () => {\n\t\t\t\t    const current = document.documentElement.getAttribute(\"data-theme\") || \"light\";\n\t\t\t\t    const label = document.getElementById(\"theme-label\");\n\t\t\t\t    if (label) label.textContent = current === \"light\" ? \"Dark Mode\" : \"Light Mode\";\n\t\t\t\t    document.querySelectorAll(\"[data-open-modal]\").forEach((btn) => {\n\t\t\t\t      btn.addEventListener(\"click\", () => {\n\t\t\t\t        const id = btn.getAttribute(\"data-open-modal\");\n\t\t\t\t        const el = document.getElementById(id);\n\t\t\t\t        if (el && typeof el.showModal === \"function\") el.showModal();\n\t\t\t\t      });\n\t\t\t\t    });\n\t\t\t\t    document.querySelectorAll(\"[data-close-modal]\").forEach((btn) => {\n\t\t\t\t      btn.addEventListener(\"click\", () => {\n\t\t\t\t        const id = btn.getAttribute(\"data-close-modal\");\n\t\t\t\t        const el = document.getElementById(id);\n\t\t\t\t        if (el && typeof el.close === \"function\") el.close();\n\t\t\t\t      });\n\t\t\t\t    });\n\t\t\t\t    document.querySelectorAll(\"form\").forEach((form) => {\n\t\t\t\t      form.querySelectorAll(\"[data-entrypoint-type]\").forEach((sel) => {\n\t\t\t\t        const sync = () => {\n\t\t\t\t          const showTLS = sel.value === \"TLS\" || sel.value === \"HTTPS\";\n\t\t\t\t          form.querySelectorAll(\"[data-tls-field]\").forEach((el) => {\n\t\t\t\t            el.style.display = showTLS ? \"\" : \"none\";\n\t\t\t\t            if (!showTLS) el.value = \"\";\n\t\t\t\t          });\n\t\t\t\t        };\n\t\t\t\t        sel.addEventListener(\"change\", sync);\n\t\t\t\t        sync();\n\t\t\t\t      });\n\t\t\t\t    });\n\t\t\t\t    const addBtn = document.getElementById(\"add-forward-address\");\n\t\t\t\t    const addressContainer = document.getElementById(\"forward-zone-addresses\");\n\t\t\t\t    if (addBtn && addressContainer) {\n\t\t\t\t      addBtn.addEventListener(\"click\", () => {\n\t\t\t\t        const input = document.createElement(\"input\");\n\t\t\t\t        input.name = \"address_item\";\n\t\t\t\t        input.placeholder = \"Resolver Address\";\n\t\t\t\t        addressContainer.appendChild(input);\n\t\t\t\t      });\n\t\t\t\t    }\n\t\t\t\t    const createForwardForm = document.querySelector(\"dialog#forward-zone-create-modal form\");\n\t\t\t\t    if (createForwardForm) {\n\t\t\t\t      createForwardForm.addEventListener(\"submit\", () => {\n\t\t\t\t        const values = Array.from(createForwardForm.querySelectorAll(\"input[name='address_item']\")).map((x) => x.value.trim()).filter(Boolean);\n\t\t\t\t        const hidden = createForwardForm.querySelector(\"#addresses_csv\");\n\t\t\t\t        if (hidden) hidden.value = values.join(\",\");\n\t\t\t\t      });\n\t\t\t\t    }\n\t\t\t\t    document.querySelectorAll(\"[data-add-forward-address]\").forEach((btn) => {\n\t\t\t\t      btn.addEventListener(\"click\", () => {\n\t\t\t\t        const id = btn.getAttribute(\"data-add-forward-address\");\n\t\t\t\t        const holder = document.getElementById(\"forward-zone-addresses-edit-\" + id);\n\t\t\t\t        if (!holder) return;\n\t\t\t\t        const input = document.createElement(\"input\");\n\t\t\t\t        input.name = \"address_item_edit_\" + id;\n\t\t\t\t        input.placeholder = \"Resolver Address\";\n\t\t\t\t        holder.appendChild(input);\n\t\t\t\t      });\n\t\t\t\t    });\n\t\t\t\t    document.querySelectorAll(\"dialog[id^='forward-zone-edit-'] form\").forEach((form) => {\n\t\t\t\t      form.addEventListener(\"submit\", () => {\n\t\t\t\t        const id = form.action.split(\"/\").pop();\n\t\t\t\t        const values = Array.from(form.querySelectorAll(\"input[name='address_item_edit_\" + id + \"']\")).map((x) => x.value.trim()).filter(Boolean);\n\t\t\t\t        const hidden = form.querySelector(\"#addresses_csv_edit_\" + id);\n\t\t\t\t        if (hidden) hidden.value = values.join(\",\");\n\t\t\t\t      });\n\t\t\t\t    });\n\t\t\t\t  });\n\t\t\t\t})();\n\t\t\t</script></head><body>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -74,11 +78,23 @@ func AdminPage(data AdminPageData) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = InboundPanel(data.Inbound).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<section class=\"duo-grid\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = ZoneCreate().Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = InboundPanel(data.Entrypoints).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = ForwardZonesPanel(data.ForwardZones, data.FallbackForwardZoneID).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</section>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = ZoneCreate(data.ForwardZones, data.FallbackForwardZoneID).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -89,7 +105,7 @@ func AdminPage(data AdminPageData) templ.Component {
 			}
 		}
 		if len(data.Zones) == 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<section class=\"panel empty\">No zones yet.</section>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<section class=\"panel empty\">No zones yet.</section>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -99,7 +115,7 @@ func AdminPage(data AdminPageData) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, " ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, " ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -107,16 +123,16 @@ func AdminPage(data AdminPageData) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, " ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, " ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = ZoneConfigModal(zone).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = ZoneConfigModal(zone, data.ForwardZones, data.FallbackForwardZoneID).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -145,20 +161,20 @@ func ErrorBox(message string) templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<div class=\"error\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<div class=\"error\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(message)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/admin.templ`, Line: 103, Col: 29}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/admin.templ`, Line: 160, Col: 29}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

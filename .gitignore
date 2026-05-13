@@ -40,4 +40,5 @@ dist/
 .envrc
 
 /__*
-/helios
+/hermes
+.tmp*

@@ -10,7 +10,8 @@ import (
 	"strings"
 	"time"
 
-	view "github.com/fmotalleb/helios/templates"
+	view "github.com/fmotalleb/hermes/templates"
+	"github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
 	"gofr.dev/pkg/gofr"
 )
@@ -57,7 +58,7 @@ func (r *repository) listZones(ctx *gofr.Context) ([]view.ZoneData, error) {
 	}
 
 	const query = `
-SELECT z.name, COALESCE(z.forward_mode, 'default'), COALESCE(z.forward_zone_id::text, ''), COALESCE(fz.name || ' (' || fz.address || ')', ''), COALESCE(z.cache_ttl, 300), r.id::text, COALESCE(r.name, ''), COALESCE(r.type, ''), COALESCE(r.value, ''), COALESCE(r.ttl, 0), COALESCE(r.priority, 0)
+SELECT z.name, COALESCE(z.forward_mode, 'default'), COALESCE(z.forward_zone_id::text, ''), COALESCE(fz.name || ' (' || array_to_string(fz.addresses, ', ') || ')', ''), COALESCE(z.cache_ttl, 300), r.id::text, COALESCE(r.name, ''), COALESCE(r.type, ''), COALESCE(r.value, ''), COALESCE(r.ttl, 0), COALESCE(r.priority, 0)
 FROM zones z
 LEFT JOIN forward_zones fz ON fz.id = z.forward_zone_id
 LEFT JOIN records r ON r.zone_id = z.id
@@ -295,7 +296,7 @@ WHERE r.id = $1 AND r.zone_id = z.id AND z.name = $2`
 }
 
 func (r *repository) listForwardZones(ctx *gofr.Context) ([]view.ForwardZoneOption, error) {
-	const query = `SELECT id::text, name, address FROM forward_zones ORDER BY name ASC`
+	const query = `SELECT id::text, name, addresses FROM forward_zones ORDER BY name ASC`
 	rows, err := ctx.SQL.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -305,7 +306,7 @@ func (r *repository) listForwardZones(ctx *gofr.Context) ([]view.ForwardZoneOpti
 	out := make([]view.ForwardZoneOption, 0)
 	for rows.Next() {
 		var opt view.ForwardZoneOption
-		if scanErr := rows.Scan(&opt.ID, &opt.Name, &opt.Address); scanErr != nil {
+		if scanErr := rows.Scan(&opt.ID, &opt.Name, pq.Array(&opt.Addresses)); scanErr != nil {
 			return nil, scanErr
 		}
 		out = append(out, opt)
@@ -314,14 +315,14 @@ func (r *repository) listForwardZones(ctx *gofr.Context) ([]view.ForwardZoneOpti
 	return out, rows.Err()
 }
 
-func (r *repository) createForwardZone(ctx *gofr.Context, name, address string) error {
+func (r *repository) createForwardZone(ctx *gofr.Context, name, addressesCSV string) error {
 	name = strings.TrimSpace(name)
-	address = strings.TrimSpace(address)
-	if name == "" || address == "" {
-		return errors.New("forward zone name and address are required")
+	addresses := parseCSVList(addressesCSV)
+	if name == "" || len(addresses) == 0 {
+		return errors.New("forward zone name and at least one address are required")
 	}
-	const query = `INSERT INTO forward_zones (name, address) VALUES ($1, $2)`
-	_, err := ctx.SQL.ExecContext(ctx, query, name, address)
+	const query = `INSERT INTO forward_zones (name, addresses) VALUES ($1, $2)`
+	_, err := ctx.SQL.ExecContext(ctx, query, name, pq.Array(addresses))
 	return err
 }
 
@@ -345,24 +346,91 @@ func (r *repository) deleteForwardZone(ctx *gofr.Context, id string) error {
 	return nil
 }
 
-func (r *repository) getInboundSettings(ctx *gofr.Context) (view.InboundSettings, error) {
-	const query = `SELECT udp_listen_address, udp_port, tcp_listen_address, tcp_port, tls_listen_address, tls_port, tls_public_key, tls_private_key, https_listen_address, https_port, https_public_key, https_private_key FROM inbound_settings LIMIT 1`
-	var in view.InboundSettings
-	err := ctx.SQL.QueryRowContext(ctx, query).Scan(
-		&in.UDPListenAddress, &in.UDPPort, &in.TCPListenAddress, &in.TCPPort,
-		&in.TLSListenAddress, &in.TLSPort, &in.TLSPublicKey, &in.TLSPrivateKey,
-		&in.HTTPSListenAddress, &in.HTTPSPort, &in.HTTPSPublicKey, &in.HTTPSPrivateKey,
-	)
-	if err == nil {
-		return in, nil
+func (r *repository) updateForwardZone(ctx *gofr.Context, id, name, addressesCSV string) error {
+	id = strings.TrimSpace(id)
+	name = strings.TrimSpace(name)
+	addresses := parseCSVList(addressesCSV)
+	if id == "" || name == "" || len(addresses) == 0 {
+		return errors.New("forward zone name and at least one address are required")
 	}
-	if errors.Is(err, sql.ErrNoRows) {
-		return view.InboundSettings{
-			UDPListenAddress: "0.0.0.0", UDPPort: 53, TCPListenAddress: "0.0.0.0", TCPPort: 53,
-			TLSListenAddress: "0.0.0.0", TLSPort: 853, HTTPSListenAddress: "0.0.0.0", HTTPSPort: 443,
-		}, nil
+	const query = `UPDATE forward_zones SET name = $2, addresses = $3 WHERE id = $1`
+	res, err := ctx.SQL.ExecContext(ctx, query, id, name, pq.Array(addresses))
+	if err != nil {
+		return err
 	}
-	return view.InboundSettings{}, err
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return errors.New("forward zone not found")
+	}
+	return nil
+}
+
+func (r *repository) listInboundEntrypoints(ctx *gofr.Context) ([]view.InboundEntrypoint, error) {
+	const query = `SELECT id::text, type, listen_address, port, public_key, private_key FROM inbound_entrypoints ORDER BY created_at ASC`
+	rows, err := ctx.SQL.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]view.InboundEntrypoint, 0)
+	for rows.Next() {
+		var ep view.InboundEntrypoint
+		if scanErr := rows.Scan(&ep.ID, &ep.Type, &ep.ListenAddress, &ep.Port, &ep.PublicKey, &ep.PrivateKey); scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, ep)
+	}
+	return out, rows.Err()
+}
+
+func (r *repository) createInboundEntrypoint(ctx *gofr.Context, ep view.InboundEntrypoint) error {
+	ep, err := validateEntrypoint(ep)
+	if err != nil {
+		return err
+	}
+	const query = `INSERT INTO inbound_entrypoints (type, listen_address, port, public_key, private_key) VALUES ($1, $2, $3, $4, $5)`
+	_, err = ctx.SQL.ExecContext(ctx, query, ep.Type, ep.ListenAddress, ep.Port, ep.PublicKey, ep.PrivateKey)
+	return err
+}
+
+func (r *repository) updateInboundEntrypoint(ctx *gofr.Context, id string, ep view.InboundEntrypoint) error {
+	ep, err := validateEntrypoint(ep)
+	if err != nil {
+		return err
+	}
+	const query = `UPDATE inbound_entrypoints SET type = $2, listen_address = $3, port = $4, public_key = $5, private_key = $6 WHERE id = $1`
+	res, err := ctx.SQL.ExecContext(ctx, query, id, ep.Type, ep.ListenAddress, ep.Port, ep.PublicKey, ep.PrivateKey)
+	if err != nil {
+		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return errors.New("entrypoint not found")
+	}
+	return nil
+}
+
+func (r *repository) deleteInboundEntrypoint(ctx *gofr.Context, id string) error {
+	const query = `DELETE FROM inbound_entrypoints WHERE id = $1`
+	res, err := ctx.SQL.ExecContext(ctx, query, id)
+	if err != nil {
+		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return errors.New("entrypoint not found")
+	}
+	return nil
 }
 
 func (r *repository) getFallbackForwardZoneID(ctx *gofr.Context) (string, error) {
@@ -382,37 +450,6 @@ func (r *repository) updateFallbackForwardZone(ctx *gofr.Context, id string) err
 	id = strings.TrimSpace(id)
 	const query = `UPDATE inbound_settings SET fallback_forward_zone_id = NULLIF($1, '') WHERE id = 1`
 	_, err := ctx.SQL.ExecContext(ctx, query, id)
-	return err
-}
-
-func (r *repository) updateInboundSettings(ctx *gofr.Context, in view.InboundSettings) error {
-	const query = `
-INSERT INTO inbound_settings (
-  id, udp_listen_address, udp_port, tcp_listen_address, tcp_port, tls_listen_address, tls_port, tls_public_key, tls_private_key, https_listen_address, https_port, https_public_key, https_private_key
-) VALUES (
-  1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
-)
-ON CONFLICT (id) DO UPDATE SET
-  udp_listen_address = EXCLUDED.udp_listen_address,
-  udp_port = EXCLUDED.udp_port,
-  tcp_listen_address = EXCLUDED.tcp_listen_address,
-  tcp_port = EXCLUDED.tcp_port,
-  tls_listen_address = EXCLUDED.tls_listen_address,
-  tls_port = EXCLUDED.tls_port,
-  tls_public_key = EXCLUDED.tls_public_key,
-  tls_private_key = EXCLUDED.tls_private_key,
-  https_listen_address = EXCLUDED.https_listen_address,
-  https_port = EXCLUDED.https_port,
-  https_public_key = EXCLUDED.https_public_key,
-  https_private_key = EXCLUDED.https_private_key`
-	_, err := ctx.SQL.ExecContext(ctx, query,
-		strings.TrimSpace(in.UDPListenAddress), in.UDPPort,
-		strings.TrimSpace(in.TCPListenAddress), in.TCPPort,
-		strings.TrimSpace(in.TLSListenAddress), in.TLSPort,
-		strings.TrimSpace(in.TLSPublicKey), strings.TrimSpace(in.TLSPrivateKey),
-		strings.TrimSpace(in.HTTPSListenAddress), in.HTTPSPort,
-		strings.TrimSpace(in.HTTPSPublicKey), strings.TrimSpace(in.HTTPSPrivateKey),
-	)
 	return err
 }
 
@@ -458,6 +495,40 @@ func normalizeForwardMode(mode string) string {
 	default:
 		return forwardModeDefault
 	}
+}
+
+func parseCSVList(csv string) []string {
+	parts := strings.Split(csv, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		value := strings.TrimSpace(part)
+		if value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
+func validateEntrypoint(ep view.InboundEntrypoint) (view.InboundEntrypoint, error) {
+	ep.Type = strings.ToUpper(strings.TrimSpace(ep.Type))
+	ep.ListenAddress = strings.TrimSpace(ep.ListenAddress)
+	ep.PublicKey = strings.TrimSpace(ep.PublicKey)
+	ep.PrivateKey = strings.TrimSpace(ep.PrivateKey)
+	if ep.Type == "" || ep.ListenAddress == "" || ep.Port <= 0 || ep.Port > 65535 {
+		return ep, errors.New("invalid entrypoint parameters")
+	}
+	switch ep.Type {
+	case "UDP", "TCP":
+		ep.PublicKey = ""
+		ep.PrivateKey = ""
+	case "TLS", "HTTPS":
+		if ep.PublicKey == "" || ep.PrivateKey == "" {
+			return ep, errors.New("public and private keys are required for TLS/HTTPS")
+		}
+	default:
+		return ep, errors.New("entrypoint type must be UDP, TCP, TLS or HTTPS")
+	}
+	return ep, nil
 }
 
 func validateRecordByType(recordType, value string) error {

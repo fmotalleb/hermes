@@ -1,4 +1,4 @@
-module github.com/fmotalleb/helios
+module github.com/fmotalleb/hermes
 
 go 1.26.2
 

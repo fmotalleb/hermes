@@ -1,6 +1,9 @@
 package templates
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 templ ZoneCreate(options []ForwardZoneOption, fallbackForwardZoneID string) {
 	<section class="panel">
@@ -12,7 +15,7 @@ templ ZoneCreate(options []ForwardZoneOption, fallbackForwardZoneID string) {
 					<option value="default">Default Fallback (not set per-zone)</option>
 					<option value="none">None (disable forwarding)</option>
 					for _, opt := range options {
-						<option value={ "id:" + opt.ID }>{ opt.Name + " (" + opt.Address + ")" }</option>
+						<option value={ "id:" + opt.ID }>{ opt.Name + " (" + strings.Join(opt.Addresses, ", ") + ")" }</option>
 					}
 				</select>
 				<input type="number" name="cache_ttl" min="0" value="300"/>
@@ -52,7 +55,7 @@ templ ZoneConfigModal(zone ZoneData, options []ForwardZoneOption, fallbackForwar
 					<option value="default" selected?={ zone.ForwardMode == "default" }>Default Fallback (not set per-zone)</option>
 					<option value="none" selected?={ zone.ForwardMode == "none" }>None (disable forwarding)</option>
 					for _, opt := range options {
-						<option value={ "id:" + opt.ID } selected?={ zone.ForwardMode == "custom" && zone.ForwardZoneID == opt.ID }>{ opt.Name + " (" + opt.Address + ")" }</option>
+						<option value={ "id:" + opt.ID } selected?={ zone.ForwardMode == "custom" && zone.ForwardZoneID == opt.ID }>{ opt.Name + " (" + strings.Join(opt.Addresses, ", ") + ")" }</option>
 					}
 				</select>
 				<input name="cache_ttl" type="number" min="0" value={ fmt.Sprintf("%d", zone.CacheTTL) }/>

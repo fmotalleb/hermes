@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/fmotalleb/helios/admin"
-	"github.com/fmotalleb/helios/migrations"
+	"github.com/fmotalleb/hermes/admin"
+	"github.com/fmotalleb/hermes/migrations"
 	"gofr.dev/pkg/gofr"
 )
 

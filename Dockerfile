@@ -1,3 +1,3 @@
 FROM scratch
-COPY helios /
-ENTRYPOINT ["/helios"]
+COPY hermes /
+ENTRYPOINT ["/hermes"]

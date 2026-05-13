@@ -12,8 +12,11 @@ func Register(app *gofr.App) {
 	app.POST("/admin/zones/{zone}/records", handler.createRecord)
 	app.POST("/admin/zones/{zone}/records/{id}/delete", handler.deleteRecord)
 	app.POST("/admin/zones/{zone}/config", handler.updateZoneConfig)
-	app.POST("/admin/inbound", handler.updateInbound)
+	app.POST("/admin/inbound", handler.createInboundEntrypoint)
+	app.POST("/admin/inbound/{id}", handler.updateInboundEntrypoint)
+	app.POST("/admin/inbound/{id}/delete", handler.deleteInboundEntrypoint)
 	app.POST("/admin/forward-zones", handler.createForwardZone)
+	app.POST("/admin/forward-zones/{id}", handler.updateForwardZone)
 	app.POST("/admin/forward-zones/{id}/delete", handler.deleteForwardZone)
 	app.POST("/admin/forward-zones/fallback", handler.updateFallbackForwardZone)
 }

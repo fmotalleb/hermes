@@ -1,24 +1,24 @@
 services:
   postgres:
     image: postgres:18-alpine
-    container_name: helios-postgres
+    container_name: hermes-postgres
     environment:
-      POSTGRES_USER: helios
-      POSTGRES_PASSWORD: helios
-      POSTGRES_DB: helios
+      POSTGRES_USER: hermes
+      POSTGRES_PASSWORD: hermes
+      POSTGRES_DB: hermes
     ports:
       - "5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - ./.tmp.pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U helios -d helios"]
+      test: ["CMD-SHELL", "pg_isready -U hermes -d hermes"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:8-alpine
-    container_name: helios-redis
+    container_name: hermes-redis
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     ports:
       - "6379:6379"
@@ -27,6 +27,3 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-volumes:
-  postgres-data:

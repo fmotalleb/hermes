@@ -19,10 +19,10 @@ archives:
           - zip
 dockers:
   - image_templates:
-    - "ghcr.io/fmotalleb/helios:latest"
-    - "ghcr.io/fmotalleb/helios:{{ .Major }}"
-    - "ghcr.io/fmotalleb/helios:{{ .Major }}.{{ .Minor }}"
-    - "ghcr.io/fmotalleb/helios:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+    - "ghcr.io/fmotalleb/hermes:latest"
+    - "ghcr.io/fmotalleb/hermes:{{ .Major }}"
+    - "ghcr.io/fmotalleb/hermes:{{ .Major }}.{{ .Minor }}"
+    - "ghcr.io/fmotalleb/hermes:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
     build_flag_templates:
     - "--pull"
     # OCI annotations: https://github.com/opencontainers/image-spec/blob/main/annotations.md

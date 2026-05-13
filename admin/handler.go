@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/a-h/templ"
-	view "github.com/fmotalleb/helios/templates"
+	view "github.com/fmotalleb/hermes/templates"
 	"gofr.dev/pkg/gofr"
 	"gofr.dev/pkg/gofr/http/response"
 )
@@ -36,27 +36,20 @@ type updateZoneConfigRequest struct {
 }
 
 type createForwardZoneRequest struct {
-	Name    string `form:"name"`
-	Address string `form:"address"`
+	Name         string `form:"name"`
+	AddressesCSV string `form:"addresses_csv"`
 }
 
 type updateFallbackRequest struct {
 	FallbackForwardZoneID string `form:"fallback_forward_zone_id"`
 }
 
-type inboundRequest struct {
-	UDPListenAddress   string `form:"udp_listen_address"`
-	UDPPort            int    `form:"udp_port"`
-	TCPListenAddress   string `form:"tcp_listen_address"`
-	TCPPort            int    `form:"tcp_port"`
-	TLSListenAddress   string `form:"tls_listen_address"`
-	TLSPort            int    `form:"tls_port"`
-	TLSPublicKey       string `form:"tls_public_key"`
-	TLSPrivateKey      string `form:"tls_private_key"`
-	HTTPSListenAddress string `form:"https_listen_address"`
-	HTTPSPort          int    `form:"https_port"`
-	HTTPSPublicKey     string `form:"https_public_key"`
-	HTTPSPrivateKey    string `form:"https_private_key"`
+type inboundEntrypointRequest struct {
+	Type          string `form:"type"`
+	ListenAddress string `form:"listen_address"`
+	Port          int    `form:"port"`
+	PublicKey     string `form:"public_key"`
+	PrivateKey    string `form:"private_key"`
 }
 
 func newHandler(repo *repository) *handler {
@@ -68,7 +61,7 @@ func (h *handler) dashboard(ctx *gofr.Context) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	inbound, err := h.repo.getInboundSettings(ctx)
+	entrypoints, err := h.repo.listInboundEntrypoints(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +77,7 @@ func (h *handler) dashboard(ctx *gofr.Context) (any, error) {
 	return renderComponent(view.AdminPage(view.AdminPageData{
 		Error:                 ctx.Request.Param("error"),
 		Zones:                 viewZones,
-		Inbound:               inbound,
+		Entrypoints:           entrypoints,
 		ForwardZones:          forwardZones,
 		FallbackForwardZoneID: fallbackID,
 	}))
@@ -153,25 +146,42 @@ func (h *handler) updateZoneConfig(ctx *gofr.Context) (any, error) {
 	return response.Redirect{URL: "/admin"}, nil
 }
 
-func (h *handler) updateInbound(ctx *gofr.Context) (any, error) {
-	var req inboundRequest
+func (h *handler) createInboundEntrypoint(ctx *gofr.Context) (any, error) {
+	var req inboundEntrypointRequest
 	if err := ctx.Request.Bind(&req); err != nil {
-		return response.Redirect{URL: "/admin?error=invalid+inbound+payload"}, nil
+		return response.Redirect{URL: "/admin?error=invalid+entrypoint+payload"}, nil
 	}
-	if err := h.repo.updateInboundSettings(ctx, view.InboundSettings{
-		UDPListenAddress:   req.UDPListenAddress,
-		UDPPort:            req.UDPPort,
-		TCPListenAddress:   req.TCPListenAddress,
-		TCPPort:            req.TCPPort,
-		TLSListenAddress:   req.TLSListenAddress,
-		TLSPort:            req.TLSPort,
-		TLSPublicKey:       req.TLSPublicKey,
-		TLSPrivateKey:      req.TLSPrivateKey,
-		HTTPSListenAddress: req.HTTPSListenAddress,
-		HTTPSPort:          req.HTTPSPort,
-		HTTPSPublicKey:     req.HTTPSPublicKey,
-		HTTPSPrivateKey:    req.HTTPSPrivateKey,
+	if err := h.repo.createInboundEntrypoint(ctx, view.InboundEntrypoint{
+		Type:          req.Type,
+		ListenAddress: req.ListenAddress,
+		Port:          req.Port,
+		PublicKey:     req.PublicKey,
+		PrivateKey:    req.PrivateKey,
 	}); err != nil {
+		return response.Redirect{URL: "/admin?error=" + url.QueryEscape(err.Error())}, nil
+	}
+	return response.Redirect{URL: "/admin"}, nil
+}
+
+func (h *handler) updateInboundEntrypoint(ctx *gofr.Context) (any, error) {
+	var req inboundEntrypointRequest
+	if err := ctx.Request.Bind(&req); err != nil {
+		return response.Redirect{URL: "/admin?error=invalid+entrypoint+payload"}, nil
+	}
+	if err := h.repo.updateInboundEntrypoint(ctx, ctx.Request.PathParam("id"), view.InboundEntrypoint{
+		Type:          req.Type,
+		ListenAddress: req.ListenAddress,
+		Port:          req.Port,
+		PublicKey:     req.PublicKey,
+		PrivateKey:    req.PrivateKey,
+	}); err != nil {
+		return response.Redirect{URL: "/admin?error=" + url.QueryEscape(err.Error())}, nil
+	}
+	return response.Redirect{URL: "/admin"}, nil
+}
+
+func (h *handler) deleteInboundEntrypoint(ctx *gofr.Context) (any, error) {
+	if err := h.repo.deleteInboundEntrypoint(ctx, ctx.Request.PathParam("id")); err != nil {
 		return response.Redirect{URL: "/admin?error=" + url.QueryEscape(err.Error())}, nil
 	}
 	return response.Redirect{URL: "/admin"}, nil
@@ -182,7 +192,7 @@ func (h *handler) createForwardZone(ctx *gofr.Context) (any, error) {
 	if err := ctx.Request.Bind(&req); err != nil {
 		return response.Redirect{URL: "/admin?error=invalid+forward+zone+payload"}, nil
 	}
-	if err := h.repo.createForwardZone(ctx, req.Name, req.Address); err != nil {
+	if err := h.repo.createForwardZone(ctx, req.Name, req.AddressesCSV); err != nil {
 		return response.Redirect{URL: "/admin?error=" + url.QueryEscape(err.Error())}, nil
 	}
 	return response.Redirect{URL: "/admin"}, nil
@@ -190,6 +200,17 @@ func (h *handler) createForwardZone(ctx *gofr.Context) (any, error) {
 
 func (h *handler) deleteForwardZone(ctx *gofr.Context) (any, error) {
 	if err := h.repo.deleteForwardZone(ctx, ctx.Request.PathParam("id")); err != nil {
+		return response.Redirect{URL: "/admin?error=" + url.QueryEscape(err.Error())}, nil
+	}
+	return response.Redirect{URL: "/admin"}, nil
+}
+
+func (h *handler) updateForwardZone(ctx *gofr.Context) (any, error) {
+	var req createForwardZoneRequest
+	if err := ctx.Request.Bind(&req); err != nil {
+		return response.Redirect{URL: "/admin?error=invalid+forward+zone+payload"}, nil
+	}
+	if err := h.repo.updateForwardZone(ctx, ctx.Request.PathParam("id"), req.Name, req.AddressesCSV); err != nil {
 		return response.Redirect{URL: "/admin?error=" + url.QueryEscape(err.Error())}, nil
 	}
 	return response.Redirect{URL: "/admin"}, nil

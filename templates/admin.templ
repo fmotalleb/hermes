@@ -3,7 +3,7 @@ package templates
 type AdminPageData struct {
 	Error                 string
 	Zones                 []ZoneData
-	Inbound               InboundSettings
+	Entrypoints           []InboundEntrypoint
 	ForwardZones          []ForwardZoneOption
 	FallbackForwardZoneID string
 }
@@ -26,25 +26,19 @@ type DNSRecord struct {
 	Priority int
 }
 
-type InboundSettings struct {
-	UDPListenAddress string
-	UDPPort          int
-	TCPListenAddress string
-	TCPPort          int
-	TLSListenAddress string
-	TLSPort          int
-	TLSPublicKey     string
-	TLSPrivateKey    string
-	HTTPSListenAddress string
-	HTTPSPort          int
-	HTTPSPublicKey     string
-	HTTPSPrivateKey    string
+type InboundEntrypoint struct {
+	ID            string
+	Type          string
+	ListenAddress string
+	Port          int
+	PublicKey     string
+	PrivateKey    string
 }
 
 type ForwardZoneOption struct {
-	ID      string
-	Name    string
-	Address string
+	ID       string
+	Name     string
+	Addresses []string
 }
 
 templ AdminPage(data AdminPageData) {
@@ -86,14 +80,66 @@ templ AdminPage(data AdminPageData) {
 				        if (el && typeof el.close === "function") el.close();
 				      });
 				    });
+				    document.querySelectorAll("form").forEach((form) => {
+				      form.querySelectorAll("[data-entrypoint-type]").forEach((sel) => {
+				        const sync = () => {
+				          const showTLS = sel.value === "TLS" || sel.value === "HTTPS";
+				          form.querySelectorAll("[data-tls-field]").forEach((el) => {
+				            el.style.display = showTLS ? "" : "none";
+				            if (!showTLS) el.value = "";
+				          });
+				        };
+				        sel.addEventListener("change", sync);
+				        sync();
+				      });
+				    });
+				    const addBtn = document.getElementById("add-forward-address");
+				    const addressContainer = document.getElementById("forward-zone-addresses");
+				    if (addBtn && addressContainer) {
+				      addBtn.addEventListener("click", () => {
+				        const input = document.createElement("input");
+				        input.name = "address_item";
+				        input.placeholder = "Resolver Address";
+				        addressContainer.appendChild(input);
+				      });
+				    }
+				    const createForwardForm = document.querySelector("dialog#forward-zone-create-modal form");
+				    if (createForwardForm) {
+				      createForwardForm.addEventListener("submit", () => {
+				        const values = Array.from(createForwardForm.querySelectorAll("input[name='address_item']")).map((x) => x.value.trim()).filter(Boolean);
+				        const hidden = createForwardForm.querySelector("#addresses_csv");
+				        if (hidden) hidden.value = values.join(",");
+				      });
+				    }
+				    document.querySelectorAll("[data-add-forward-address]").forEach((btn) => {
+				      btn.addEventListener("click", () => {
+				        const id = btn.getAttribute("data-add-forward-address");
+				        const holder = document.getElementById("forward-zone-addresses-edit-" + id);
+				        if (!holder) return;
+				        const input = document.createElement("input");
+				        input.name = "address_item_edit_" + id;
+				        input.placeholder = "Resolver Address";
+				        holder.appendChild(input);
+				      });
+				    });
+				    document.querySelectorAll("dialog[id^='forward-zone-edit-'] form").forEach((form) => {
+				      form.addEventListener("submit", () => {
+				        const id = form.action.split("/").pop();
+				        const values = Array.from(form.querySelectorAll("input[name='address_item_edit_" + id + "']")).map((x) => x.value.trim()).filter(Boolean);
+				        const hidden = form.querySelector("#addresses_csv_edit_" + id);
+				        if (hidden) hidden.value = values.join(",");
+				      });
+				    });
 				  });
 				})();
 			</script>
 		</head>
 		<body>
 			@Header()
-			@InboundPanel(data.Inbound)
-			@ForwardZonesPanel(data.ForwardZones, data.FallbackForwardZoneID)
+			<section class="duo-grid">
+				@InboundPanel(data.Entrypoints)
+				@ForwardZonesPanel(data.ForwardZones, data.FallbackForwardZoneID)
+			</section>
 			@ZoneCreate(data.ForwardZones, data.FallbackForwardZoneID)
 			if data.Error != "" {
 				@ErrorBox(data.Error)
