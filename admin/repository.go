@@ -49,7 +49,7 @@ func (r *repository) listZones(ctx *gofr.Context) ([]view.ZoneData, error) {
 	}
 
 	const query = `
-SELECT z.name, r.id::text, COALESCE(r.name, ''), COALESCE(r.type, ''), COALESCE(r.value, ''), COALESCE(r.ttl, 0), COALESCE(r.priority, 0)
+SELECT z.name, COALESCE(z.forward_zone, ''), COALESCE(z.cache_ttl, 300), r.id::text, COALESCE(r.name, ''), COALESCE(r.type, ''), COALESCE(r.value, ''), COALESCE(r.ttl, 0), COALESCE(r.priority, 0)
 FROM zones z
 LEFT JOIN records r ON r.zone_id = z.id
 ORDER BY z.name ASC, r.id ASC`
@@ -65,21 +65,23 @@ ORDER BY z.name ASC, r.id ASC`
 
 	for rows.Next() {
 		var (
-			zoneName string
-			recordID sql.NullString
-			recName  string
-			recType  string
-			recValue string
-			recTTL   int
-			priority int
+			zoneName    string
+			forwardZone string
+			cacheTTL    int
+			recordID    sql.NullString
+			recName     string
+			recType     string
+			recValue    string
+			recTTL      int
+			priority    int
 		)
-		if scanErr := rows.Scan(&zoneName, &recordID, &recName, &recType, &recValue, &recTTL, &priority); scanErr != nil {
+		if scanErr := rows.Scan(&zoneName, &forwardZone, &cacheTTL, &recordID, &recName, &recType, &recValue, &recTTL, &priority); scanErr != nil {
 			return nil, scanErr
 		}
 
 		idx, ok := byName[zoneName]
 		if !ok {
-			zones = append(zones, view.ZoneData{Name: zoneName, Records: make([]view.DNSRecord, 0)})
+			zones = append(zones, view.ZoneData{Name: zoneName, ForwardZone: forwardZone, CacheTTL: cacheTTL, Records: make([]view.DNSRecord, 0)})
 			idx = len(zones) - 1
 			byName[zoneName] = idx
 		}
@@ -105,14 +107,18 @@ ORDER BY z.name ASC, r.id ASC`
 	return zones, nil
 }
 
-func (r *repository) createZone(ctx *gofr.Context, name string) error {
+func (r *repository) createZone(ctx *gofr.Context, name, forwardZone string, cacheTTL int) error {
 	zone := normalizeZone(name)
 	if zone == "" {
 		return errors.New("zone is required")
 	}
+	forwardZone = strings.TrimSpace(forwardZone)
+	if cacheTTL < 0 {
+		return errors.New("cache ttl must be non-negative")
+	}
 
-	const query = `INSERT INTO zones (name) VALUES ($1)`
-	if _, err := ctx.SQL.ExecContext(ctx, query, zone); err != nil {
+	const query = `INSERT INTO zones (name, forward_zone, cache_ttl) VALUES ($1, $2, $3)`
+	if _, err := ctx.SQL.ExecContext(ctx, query, zone, forwardZone, cacheTTL); err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "duplicate") || strings.Contains(strings.ToLower(err.Error()), "unique") {
 			return errZoneExists
 		}
@@ -143,6 +149,28 @@ func (r *repository) deleteZone(ctx *gofr.Context, name string) error {
 
 	r.invalidateAndPublish(ctx, `{"event":"zone.deleted","zone":"`+zone+`"}`)
 
+	return nil
+}
+
+func (r *repository) updateZoneConfig(ctx *gofr.Context, name, forwardZone string, cacheTTL int) error {
+	zone := normalizeZone(name)
+	forwardZone = strings.TrimSpace(forwardZone)
+	if cacheTTL < 0 {
+		return errors.New("cache ttl must be non-negative")
+	}
+	const query = `UPDATE zones SET forward_zone = $2, cache_ttl = $3 WHERE name = $1`
+	res, err := ctx.SQL.ExecContext(ctx, query, zone, forwardZone, cacheTTL)
+	if err != nil {
+		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return errZoneNotFound
+	}
+	r.invalidateAndPublish(ctx, `{"event":"zone.config.updated","zone":"`+zone+`"}`)
 	return nil
 }
 
@@ -217,6 +245,57 @@ WHERE r.id = $1 AND r.zone_id = z.id AND z.name = $2`
 	r.invalidateAndPublish(ctx, `{"event":"record.deleted","zone":"`+zone+`","id":"`+recordID+`"}`)
 
 	return nil
+}
+
+func (r *repository) getInboundSettings(ctx *gofr.Context) (view.InboundSettings, error) {
+	const query = `SELECT udp_listen_address, udp_port, tcp_listen_address, tcp_port, tls_listen_address, tls_port, tls_public_key, tls_private_key, https_listen_address, https_port, https_public_key, https_private_key FROM inbound_settings LIMIT 1`
+	var in view.InboundSettings
+	err := ctx.SQL.QueryRowContext(ctx, query).Scan(
+		&in.UDPListenAddress, &in.UDPPort, &in.TCPListenAddress, &in.TCPPort,
+		&in.TLSListenAddress, &in.TLSPort, &in.TLSPublicKey, &in.TLSPrivateKey,
+		&in.HTTPSListenAddress, &in.HTTPSPort, &in.HTTPSPublicKey, &in.HTTPSPrivateKey,
+	)
+	if err == nil {
+		return in, nil
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return view.InboundSettings{
+			UDPListenAddress: "0.0.0.0", UDPPort: 53, TCPListenAddress: "0.0.0.0", TCPPort: 53,
+			TLSListenAddress: "0.0.0.0", TLSPort: 853, HTTPSListenAddress: "0.0.0.0", HTTPSPort: 443,
+		}, nil
+	}
+	return view.InboundSettings{}, err
+}
+
+func (r *repository) updateInboundSettings(ctx *gofr.Context, in view.InboundSettings) error {
+	const query = `
+INSERT INTO inbound_settings (
+  id, udp_listen_address, udp_port, tcp_listen_address, tcp_port, tls_listen_address, tls_port, tls_public_key, tls_private_key, https_listen_address, https_port, https_public_key, https_private_key
+) VALUES (
+  1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+)
+ON CONFLICT (id) DO UPDATE SET
+  udp_listen_address = EXCLUDED.udp_listen_address,
+  udp_port = EXCLUDED.udp_port,
+  tcp_listen_address = EXCLUDED.tcp_listen_address,
+  tcp_port = EXCLUDED.tcp_port,
+  tls_listen_address = EXCLUDED.tls_listen_address,
+  tls_port = EXCLUDED.tls_port,
+  tls_public_key = EXCLUDED.tls_public_key,
+  tls_private_key = EXCLUDED.tls_private_key,
+  https_listen_address = EXCLUDED.https_listen_address,
+  https_port = EXCLUDED.https_port,
+  https_public_key = EXCLUDED.https_public_key,
+  https_private_key = EXCLUDED.https_private_key`
+	_, err := ctx.SQL.ExecContext(ctx, query,
+		strings.TrimSpace(in.UDPListenAddress), in.UDPPort,
+		strings.TrimSpace(in.TCPListenAddress), in.TCPPort,
+		strings.TrimSpace(in.TLSListenAddress), in.TLSPort,
+		strings.TrimSpace(in.TLSPublicKey), strings.TrimSpace(in.TLSPrivateKey),
+		strings.TrimSpace(in.HTTPSListenAddress), in.HTTPSPort,
+		strings.TrimSpace(in.HTTPSPublicKey), strings.TrimSpace(in.HTTPSPrivateKey),
+	)
+	return err
 }
 
 func (r *repository) cacheZones(ctx *gofr.Context, zones []view.ZoneData) {

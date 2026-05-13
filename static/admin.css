@@ -76,6 +76,24 @@ h1 { font-size: 24px; }
   gap: 10px;
   margin-bottom: 10px;
 }
+.zone-compact { padding: 10px 12px; }
+.zone-row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.zone-title { font-weight: 700; font-size: 15px; }
+.zone-actions { display:flex; gap:8px; align-items:center; }
+.zone-actions form { margin:0; }
+.zone-actions button { width:auto; }
+
+.modal {
+  width: min(1000px, 95vw);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--surface);
+  color: var(--fg);
+}
+.modal::backdrop { background: rgba(2, 6, 23, 0.65); }
+.modal-head { display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px; }
+.modal-head button { width:auto; background: var(--surface-2); color: var(--fg); border: 1px solid var(--border); }
 
 input, select, button {
   width: 100%;

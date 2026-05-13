@@ -9,3 +9,7 @@ func zonePathSegment(zone string) string {
 func recordPathSegment(id string) string {
 	return url.PathEscape(id)
 }
+
+func zoneDOMID(zone string) string {
+	return url.QueryEscape(zone)
+}

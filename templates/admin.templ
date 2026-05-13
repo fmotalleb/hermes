@@ -1,15 +1,16 @@
 package templates
 
-import "fmt"
-
 type AdminPageData struct {
-	Error string
-	Zones []ZoneData
+	Error   string
+	Zones   []ZoneData
+	Inbound InboundSettings
 }
 
 type ZoneData struct {
-	Name    string
-	Records []DNSRecord
+	Name        string
+	ForwardZone string
+	CacheTTL    int
+	Records     []DNSRecord
 }
 
 type DNSRecord struct {
@@ -19,6 +20,21 @@ type DNSRecord struct {
 	Value    string
 	TTL      int
 	Priority int
+}
+
+type InboundSettings struct {
+	UDPListenAddress string
+	UDPPort          int
+	TCPListenAddress string
+	TCPPort          int
+	TLSListenAddress string
+	TLSPort          int
+	TLSPublicKey     string
+	TLSPrivateKey    string
+	HTTPSListenAddress string
+	HTTPSPort          int
+	HTTPSPublicKey     string
+	HTTPSPrivateKey    string
 }
 
 templ AdminPage(data AdminPageData) {
@@ -46,12 +62,27 @@ templ AdminPage(data AdminPageData) {
 				    const current = document.documentElement.getAttribute("data-theme") || "light";
 				    const label = document.getElementById("theme-label");
 				    if (label) label.textContent = current === "light" ? "Dark Mode" : "Light Mode";
+				    document.querySelectorAll("[data-open-modal]").forEach((btn) => {
+				      btn.addEventListener("click", () => {
+				        const id = btn.getAttribute("data-open-modal");
+				        const el = document.getElementById(id);
+				        if (el && typeof el.showModal === "function") el.showModal();
+				      });
+				    });
+				    document.querySelectorAll("[data-close-modal]").forEach((btn) => {
+				      btn.addEventListener("click", () => {
+				        const id = btn.getAttribute("data-close-modal");
+				        const el = document.getElementById(id);
+				        if (el && typeof el.close === "function") el.close();
+				      });
+				    });
 				  });
 				})();
 			</script>
 		</head>
 		<body>
 			@Header()
+			@InboundPanel(data.Inbound)
 			@ZoneCreate()
 			if data.Error != "" {
 				@ErrorBox(data.Error)
@@ -60,95 +91,14 @@ templ AdminPage(data AdminPageData) {
 				<section class="panel empty">No zones yet.</section>
 			}
 			for _, zone := range data.Zones {
-				@ZonePanel(zone)
+				@ZoneRow(zone)
+				@ZoneRecordsModal(zone)
+				@ZoneConfigModal(zone)
 			}
 		</body>
 	</html>
 }
 
-templ Header() {
-	<header class="topbar">
-		<div>
-			<h1>DNS Admin Panel</h1>
-			<div class="subtle">Zones and DNS records</div>
-		</div>
-		<button class="theme-btn" type="button" onclick="toggleTheme()"><span id="theme-label">Theme</span></button>
-	</header>
-}
-
-templ ZoneCreate() {
-	<section class="panel">
-		<h2>Create Zone</h2>
-		<form method="post" action="/admin/zones">
-			<div class="grid">
-				<input type="text" name="name" placeholder="example.com" required/>
-				<button type="submit">Create</button>
-			</div>
-		</form>
-	</section>
-}
-
 templ ErrorBox(message string) {
 	<div class="error">{ message }</div>
-}
-
-templ ZonePanel(zone ZoneData) {
-	<section class="panel">
-		<div class="zone-head">
-			<h2>{ zone.Name }</h2>
-			<form method="post" action={ fmt.Sprintf("/admin/zones/%s/delete", zonePathSegment(zone.Name)) }>
-				<button class="btn-delete" type="submit">Delete Zone</button>
-			</form>
-		</div>
-		<h3>Records</h3>
-		<table>
-			<thead>
-				<tr>
-					<th>Name</th>
-					<th>Type</th>
-					<th>Value</th>
-					<th>TTL</th>
-					<th>Priority</th>
-					<th>Action</th>
-				</tr>
-			</thead>
-			<tbody>
-				if len(zone.Records) == 0 {
-					<tr><td colspan="6" class="subtle">No records yet.</td></tr>
-				}
-				for _, record := range zone.Records {
-					<tr>
-						<td>{ record.Name }</td>
-						<td>{ record.Type }</td>
-						<td>{ record.Value }</td>
-						<td>{ fmt.Sprintf("%d", record.TTL) }</td>
-						<td>{ fmt.Sprintf("%d", record.Priority) }</td>
-						<td>
-							<form method="post" action={ fmt.Sprintf("/admin/zones/%s/records/%s/delete", zonePathSegment(zone.Name), recordPathSegment(record.ID)) }>
-								<button class="btn-delete" type="submit">Delete</button>
-							</form>
-						</td>
-					</tr>
-				}
-			</tbody>
-		</table>
-		<h3 style="margin-top:16px;">Add Record</h3>
-		<form method="post" action={ fmt.Sprintf("/admin/zones/%s/records", zonePathSegment(zone.Name)) }>
-			<div class="grid">
-				<input name="name" placeholder="@ / api / mail" required/>
-				<select name="type" required>
-					<option value="A">A</option>
-					<option value="AAAA">AAAA</option>
-					<option value="CNAME">CNAME</option>
-					<option value="MX">MX</option>
-					<option value="TXT">TXT</option>
-					<option value="NS">NS</option>
-				</select>
-				<input name="value" placeholder="value (IP/host/text)" required/>
-				<input name="ttl" type="number" min="1" value="300" required/>
-				<input name="priority" type="number" min="0" value="0"/>
-				<button type="submit">Add</button>
-			</div>
-		</form>
-	</section>
 }

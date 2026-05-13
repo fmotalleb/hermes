@@ -1,0 +1,27 @@
+package templates
+
+import "fmt"
+
+templ InboundPanel(inbound InboundSettings) {
+	<section class="panel">
+		<h2>Inbound</h2>
+		<form method="post" action="/admin/inbound">
+			<div class="grid">
+				<input name="udp_listen_address" placeholder="UDP Listen Address" value={ inbound.UDPListenAddress }/>
+				<input name="udp_port" type="number" min="1" max="65535" value={ fmt.Sprintf("%d", inbound.UDPPort) }/>
+				<input name="tcp_listen_address" placeholder="TCP Listen Address" value={ inbound.TCPListenAddress }/>
+				<input name="tcp_port" type="number" min="1" max="65535" value={ fmt.Sprintf("%d", inbound.TCPPort) }/>
+				<input name="tls_listen_address" placeholder="TLS Listen Address" value={ inbound.TLSListenAddress }/>
+				<input name="tls_port" type="number" min="1" max="65535" value={ fmt.Sprintf("%d", inbound.TLSPort) }/>
+				<input name="tls_public_key" placeholder="TLS Public Key Path" value={ inbound.TLSPublicKey }/>
+				<input name="tls_private_key" placeholder="TLS Private Key Path" value={ inbound.TLSPrivateKey }/>
+				<input name="https_listen_address" placeholder="HTTPS Listen Address" value={ inbound.HTTPSListenAddress }/>
+				<input name="https_port" type="number" min="1" max="65535" value={ fmt.Sprintf("%d", inbound.HTTPSPort) }/>
+				<input name="https_public_key" placeholder="HTTPS Public Key Path" value={ inbound.HTTPSPublicKey }/>
+				<input name="https_private_key" placeholder="HTTPS Private Key Path" value={ inbound.HTTPSPrivateKey }/>
+				<button type="submit">Save Inbound</button>
+			</div>
+		</form>
+	</section>
+}
+
