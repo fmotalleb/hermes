@@ -1,9 +1,10 @@
 package main
 
 import (
+	"gofr.dev/pkg/gofr"
+
 	"github.com/fmotalleb/hermes/admin"
 	"github.com/fmotalleb/hermes/migrations"
-	"gofr.dev/pkg/gofr"
 )
 
 func main() {
