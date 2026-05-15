@@ -10,10 +10,11 @@ import (
 	"strings"
 	"time"
 
-	view "github.com/fmotalleb/hermes/templates"
 	"github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
 	"gofr.dev/pkg/gofr"
+
+	view "github.com/fmotalleb/hermes/templates"
 )
 
 const (
@@ -448,7 +449,7 @@ func (r *repository) getFallbackForwardZoneID(ctx *gofr.Context) (string, error)
 
 func (r *repository) updateFallbackForwardZone(ctx *gofr.Context, id string) error {
 	id = strings.TrimSpace(id)
-	const query = `UPDATE inbound_settings SET fallback_forward_zone_id = NULLIF($1, '') WHERE id = 1`
+	const query = `UPDATE inbound_settings SET fallback_forward_zone_id = NULLIF($1, '')::uuid WHERE id = 1`
 	_, err := ctx.SQL.ExecContext(ctx, query, id)
 	return err
 }
