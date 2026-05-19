@@ -9,6 +9,7 @@ type ZoneData struct {
 	TTL           uint32
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+	RecordCount   int
 }
 
 type DNSRecordType string

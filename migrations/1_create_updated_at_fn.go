@@ -5,8 +5,8 @@ import (
 )
 
 const createSetUpdatedAtFunction = `
-CREATE OR REPLACE FUNCTION "set_updated_at"()
-  RETURNS "pg_catalog"."trigger" AS $BODY$
+CREATE OR REPLACE FUNCTION set_updated_at()
+  RETURNS trigger AS $BODY$
 BEGIN
   NEW.updated_at = NOW();
   RETURN NEW;

@@ -7,7 +7,7 @@ import (
 
 func All() map[int64]migration.Migrate {
 	return map[int64]migration.Migrate{
-		0: createUpdatedAtFn(),
-		1: createDNSApiSchema(),
+		1: createUpdatedAtFn(),
+		2: createDNSApiSchema(),
 	}
 }

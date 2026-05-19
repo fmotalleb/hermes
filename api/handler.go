@@ -4,6 +4,8 @@ import (
 	"gofr.dev/pkg/gofr"
 
 	"github.com/fmotalleb/hermes/models"
+	"github.com/fmotalleb/hermes/queries"
+	"github.com/fmotalleb/hermes/request"
 )
 
 type handler struct {
@@ -17,48 +19,12 @@ func newHandler(r *repository) *handler {
 }
 
 func (h *handler) getZones(ctx *gofr.Context) (any, error) {
-	p := new(models.Paginator)
-
-	if err := ctx.Bind(p); err != nil {
+	p := request.PaginatorOf(ctx)
+	var err error
+	var zones []models.ZoneData
+	if zones, err = queries.GetZones(ctx, p.Limit, p.Offset); err != nil {
 		return nil, err
 	}
-	if err := p.Error(); err != nil {
-		return nil, err
-	}
-
-	query := `
-		SELECT id, name, forward_zone_id, ttl, created_at, updated_at
-		FROM zones
-		ORDER BY name
-		LIMIT $1 OFFSET $2
-	`
-
-	rows, err := ctx.SQL.QueryContext(ctx, query, p.Limit, p.Offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	zones := make([]models.ZoneData, 0)
-
-	for rows.Next() {
-		var z models.ZoneData
-
-		err := rows.Scan(
-			&z.ID,
-			&z.Name,
-			&z.ForwardZoneID,
-			&z.TTL,
-			&z.CreatedAt,
-			&z.UpdatedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		zones = append(zones, z)
-	}
-
 	return map[string]any{
 		"limit":  p.Limit,
 		"offset": p.Offset,
