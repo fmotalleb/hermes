@@ -5,7 +5,11 @@ info:
 
 http:
   method: GET
-  url: "{{base_url}}/zones"
+  url: "{{base_url_zones}}?limit=5"
+  params:
+    - name: limit
+      value: "5"
+      type: query
   auth: inherit
 
 settings:
