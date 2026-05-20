@@ -1,0 +1,23 @@
+info:
+  name: Create
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: "{{base_url_forward_zones}}"
+  body:
+    mimeType: application/json
+    text: |
+      {
+        "name": "recursive",
+        "addresses": ["1.1.1.1", "8.8.8.8"]
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+

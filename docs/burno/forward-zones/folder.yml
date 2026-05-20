@@ -1,0 +1,13 @@
+info:
+  name: forward-zones
+  type: folder
+  seq: 2
+
+request:
+  auth: inherit
+  variables:
+    - name: base_url_forward_zones
+      value: "{{base_url}}/forward-zones"
+    - name: forward_zone_id
+      value: 00000000-0000-0000-0000-000000000000
+

@@ -8,3 +8,5 @@ request:
   variables:
     - name: base_url_zones
       value: "{{base_url}}/zones"
+    - name: zone_id
+      value: 00000000-0000-0000-0000-000000000000

@@ -1,0 +1,24 @@
+info:
+  name: Create
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: "{{base_url_zones}}"
+  body:
+    mimeType: application/json
+    text: |
+      {
+        "name": "example.com",
+        "forward_zone_id": "",
+        "ttl": 300
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+

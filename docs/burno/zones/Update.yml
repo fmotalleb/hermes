@@ -1,0 +1,24 @@
+info:
+  name: Update
+  type: http
+  seq: 4
+
+http:
+  method: POST
+  url: "{{base_url_zones}}/{{zone_id}}"
+  body:
+    mimeType: application/json
+    text: |
+      {
+        "name": "example.org",
+        "forward_zone_id": "",
+        "ttl": 300
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+

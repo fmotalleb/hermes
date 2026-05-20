@@ -1,0 +1,13 @@
+info:
+  name: records
+  type: folder
+  seq: 2
+
+request:
+  auth: inherit
+  variables:
+    - name: base_url_zone_records
+      value: "{{base_url}}/zones/{{zone_id}}/records"
+    - name: record_id
+      value: 00000000-0000-0000-0000-000000000000
+
