@@ -10,7 +10,8 @@ http:
     type: json
     data: |-
       {
-        "name": "local",
+        "name": "google.com",
+        "forward_zone_id" : "019e46fa-b559-7e6e-b9ed-a850acfe327e",
         "ttl": 300
       }
   auth: inherit

@@ -10,10 +10,10 @@ http:
     type: json
     data: |-
       {
-        "name":"cloudflare",
+        "name":"zirsakht",
         "addresses": [
-          "udp://1.1.1.1:53",
-          "udp://1.0.0.1:53"
+          "udp://217.218.155.155:53",
+          "udp://217.218.127.127:53"
         ]
       }
   auth: inherit

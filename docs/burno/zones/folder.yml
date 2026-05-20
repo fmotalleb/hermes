@@ -9,4 +9,4 @@ request:
     - name: base_url_zones
       value: "{{base_url}}/zones"
     - name: zone_id
-      value: 019e46cd-5cc0-73ff-9007-5c214c19ad5e
+      value: 019e46fb-2259-7d6b-8830-6cec9e5d0f22
