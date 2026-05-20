@@ -62,7 +62,7 @@ UPDATE zones
 SET
   name = $1,
   forward_zone_id = CASE
-    WHEN $2 IS NULL THEN forward_zone_id
+    WHEN $2::text IS NULL THEN forward_zone_id
     ELSE NULLIF($2::text, '')::uuid
   END,
   ttl = COALESCE($3, ttl)
