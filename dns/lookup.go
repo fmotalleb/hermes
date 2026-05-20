@@ -3,12 +3,14 @@ package dns
 import (
 	"context"
 	"net"
+	"path"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/fmotalleb/hermes/models"
 	"github.com/miekg/dns"
+
+	"github.com/fmotalleb/hermes/models"
 )
 
 func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
@@ -33,6 +35,8 @@ func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 }
 
 func (h *handler) lookup(ctx context.Context, qname string, qtype uint16, req *dns.Msg) (*dns.Msg, error) {
+	qname = normalizeDNSName(qname)
+
 	zone, err := h.store.findZone(ctx, qname)
 	if err != nil {
 		if isNoRows(err) {
@@ -67,26 +71,89 @@ func (h *handler) lookup(ctx context.Context, qname string, qtype uint16, req *d
 	return msg, nil
 }
 
-func (h *handler) forward(ctx context.Context, req *dns.Msg, forwardZoneID string) (*dns.Msg, error) {
-	fz, err := h.store.findForwardZone(ctx, forwardZoneID)
+func (h *handler) forward(
+	ctx context.Context,
+	req *dns.Msg,
+	forwardZoneID string,
+) (*dns.Msg, error) {
+	fz, err := h.store.findForwardZone(
+		ctx,
+		forwardZoneID,
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	client := &dns.Client{Timeout: 3 * time.Second}
-
-	for _, addr := range fz.Addresses {
-		target := normalizeDNSAddress(addr)
-		resp, _, err := client.ExchangeContext(ctx, req, target)
-		if err == nil && resp != nil {
-			return resp, nil
+	for _, raw := range fz.Addresses {
+		network, target := parseDNSAddress(raw)
+		if target == "" {
+			continue
 		}
+
+		client := &dns.Client{
+			Net:     network,
+			Timeout: 3 * time.Second,
+		}
+
+		resp, _, err := client.ExchangeContext(
+			ctx,
+			req.Copy(),
+			target,
+		)
+		if err != nil {
+			continue
+		}
+
+		if resp == nil {
+			continue
+		}
+
+		// Retry truncated UDP over TCP
+		if resp.Truncated && network == "udp" {
+			tcpClient := &dns.Client{
+				Net:     "tcp",
+				Timeout: 3 * time.Second,
+			}
+
+			tcpResp, _, err := tcpClient.ExchangeContext(
+				ctx,
+				req.Copy(),
+				target,
+			)
+			if err == nil && tcpResp != nil {
+				return tcpResp, nil
+			}
+		}
+
+		return resp, nil
 	}
 
 	msg := new(dns.Msg)
 	msg.SetReply(req)
 	msg.Rcode = dns.RcodeServerFailure
+
 	return msg, nil
+}
+
+func parseDNSAddress(
+	addr string,
+) (network string, target string) {
+	switch {
+	case strings.HasPrefix(addr, "udp://"):
+		return "udp",
+			strings.TrimPrefix(addr, "udp://")
+
+	case strings.HasPrefix(addr, "tcp://"):
+		return "tcp",
+			strings.TrimPrefix(addr, "tcp://")
+
+	case strings.HasPrefix(addr, "tls://"):
+		return "tcp-tls",
+			strings.TrimPrefix(addr, "tls://")
+
+	default:
+		return "udp", addr
+	}
 }
 
 func normalizeDNSAddress(addr string) string {
@@ -109,21 +176,110 @@ func nxdomain(req *dns.Msg) *dns.Msg {
 	return msg
 }
 
+type patternScore struct {
+	exact         bool
+	wildcardCount int
+	literalCount  int
+	length        int
+	pattern       string
+}
+
+type recordGroup struct {
+	score   patternScore
+	records []recordRow
+}
+
 func buildAnswers(zoneName, qname string, qtype uint16, records []recordRow) []dns.RR {
-	matches := matchRecords(zoneName, qname, qtype, records)
+	matches := selectBestRecordSet(zoneName, qname, qtype, records)
 	if len(matches) == 0 {
 		return nil
 	}
 
 	if cname := firstRecordOfType(matches, models.CNAME); cname != nil {
-		if rr, ok := recordToRR(zoneName, qname, *cname); ok {
-			return []dns.RR{rr}
+		return convertRecords(zoneName, qname, []recordRow{*cname})
+	}
+
+	return convertRecords(zoneName, qname, matches)
+}
+
+func selectBestRecordSet(zoneName, qname string, qtype uint16, records []recordRow) []recordRow {
+	zoneName = normalizeDNSName(zoneName)
+	qname = normalizeDNSName(qname)
+
+	groups := make(map[string]*recordGroup)
+
+	for _, r := range records {
+		pattern := recordPattern(zoneName, r.Name)
+		ok, err := path.Match(pattern, qname)
+		if err != nil || !ok {
+			continue
 		}
+
+		if qtype != dns.TypeANY {
+			if r.Type != models.CNAME {
+				rtype, ok := dns.StringToType[string(r.Type)]
+				if !ok && r.Type != models.DNSRecordType("TLSA") {
+					continue
+				}
+				if r.Type != models.DNSRecordType("TLSA") && rtype != qtype {
+					continue
+				}
+			}
+		}
+
+		group := groups[pattern]
+		if group == nil {
+			group = &recordGroup{score: specificityOf(pattern, qname)}
+			groups[pattern] = group
+		}
+		group.records = append(group.records, r)
+	}
+
+	var best *recordGroup
+	for _, group := range groups {
+		if best == nil || moreSpecific(group.score, best.score) {
+			best = group
+		}
+	}
+
+	if best == nil {
 		return nil
 	}
 
-	answers := make([]dns.RR, 0, len(matches))
-	for _, r := range matches {
+	return best.records
+}
+
+func specificityOf(pattern, qname string) patternScore {
+	wildcards := strings.Count(pattern, "*") + strings.Count(pattern, "?") + strings.Count(pattern, "[")
+	literals := len([]rune(pattern)) - wildcards
+	return patternScore{
+		exact:         pattern == qname,
+		wildcardCount: wildcards,
+		literalCount:  literals,
+		length:        len([]rune(pattern)),
+		pattern:       pattern,
+	}
+}
+
+func moreSpecific(a, b patternScore) bool {
+	if a.exact != b.exact {
+		return a.exact
+	}
+	if a.wildcardCount != b.wildcardCount {
+		return a.wildcardCount < b.wildcardCount
+	}
+	if a.literalCount != b.literalCount {
+		return a.literalCount > b.literalCount
+	}
+	if a.length != b.length {
+		return a.length > b.length
+	}
+	return a.pattern < b.pattern
+}
+
+func convertRecords(zoneName, qname string, records []recordRow) []dns.RR {
+	answers := make([]dns.RR, 0, len(records))
+	for _, r := range records {
 		rr, ok := recordToRR(zoneName, qname, r)
 		if !ok {
 			continue
@@ -132,68 +288,6 @@ func buildAnswers(zoneName, qname string, qtype uint16, records []recordRow) []d
 	}
 
 	return answers
-}
-
-func matchRecords(zoneName, qname string, qtype uint16, records []recordRow) []recordRow {
-	qname = normalizeDNSName(qname)
-	zoneName = normalizeDNSName(zoneName)
-
-	candidates := recordNameCandidates(zoneName, qname)
-	matches := make([]recordRow, 0)
-
-	for _, r := range records {
-		name := normalizeDNSName(r.Name)
-		if !candidateMatch(name, candidates) {
-			continue
-		}
-
-		rtype, ok := dns.StringToType[string(r.Type)]
-		if !ok {
-			continue
-		}
-
-		if qtype != dns.TypeANY && rtype != qtype && r.Type != models.CNAME {
-			continue
-		}
-
-		matches = append(matches, r)
-	}
-
-	return matches
-}
-
-func candidateMatch(name string, candidates map[string]struct{}) bool {
-	_, ok := candidates[name]
-	return ok
-}
-
-func recordNameCandidates(zoneName, qname string) map[string]struct{} {
-	candidates := map[string]struct{}{
-		qname:             {},
-		zoneName:          {},
-		"@":               {},
-		"":                {},
-		wildcardOf(qname): {},
-	}
-
-	if qname == zoneName {
-		return candidates
-	}
-
-	if strings.HasSuffix(qname, "."+zoneName) {
-		rel := strings.TrimSuffix(qname, "."+zoneName)
-		candidates[rel] = struct{}{}
-		candidates[wildcardOf(rel)] = struct{}{}
-	}
-
-	return candidates
-}
-
-func wildcardOf(name string) string {
-	if name == "" || name == "@" {
-		return name
-	}
-	return "*." + name
 }
 
 func firstRecordOfType(records []recordRow, typ models.DNSRecordType) *recordRow {
@@ -205,6 +299,22 @@ func firstRecordOfType(records []recordRow, typ models.DNSRecordType) *recordRow
 	return nil
 }
 
+func recordPattern(zoneName, recordName string) string {
+	recordName = normalizeDNSName(recordName)
+	zoneName = normalizeDNSName(zoneName)
+
+	switch recordName {
+	case "", "@":
+		return zoneName
+	}
+
+	if recordName == zoneName || strings.HasSuffix(recordName, "."+zoneName) {
+		return recordName
+	}
+
+	return recordName + "." + zoneName
+}
+
 func recordToRR(zoneName, qname string, r recordRow) (dns.RR, bool) {
 	owner := ownerName(zoneName, qname, r.Name)
 	ttl := r.TTL
@@ -212,9 +322,18 @@ func recordToRR(zoneName, qname string, r recordRow) (dns.RR, bool) {
 		ttl = 300
 	}
 
+	rtype, ok := dns.StringToType[string(r.Type)]
+	if !ok {
+		if r.Type == models.DNSRecordType("TLSA") {
+			rtype = dns.TypeTLSA
+		} else {
+			rtype = dns.TypeTXT
+		}
+	}
+
 	hdr := dns.RR_Header{
 		Name:   owner,
-		Rrtype: dns.StringToType[string(r.Type)],
+		Rrtype: rtype,
 		Class:  dns.ClassINET,
 		Ttl:    ttl,
 	}
@@ -248,11 +367,35 @@ func recordToRR(zoneName, qname string, r recordRow) (dns.RR, bool) {
 		return parseSOA(hdr, zoneName, r)
 	case models.SRV:
 		return parseSRV(hdr, r)
+	case models.DNSRecordType("TLSA"):
+		return parseTLSA(hdr, r)
 	case models.DNSKEY, models.DS, models.RRSIG, models.NSEC, models.NSEC3, models.TLS:
 		return &dns.TXT{Hdr: hdr, Txt: []string{r.Value}}, true
 	default:
 		return &dns.TXT{Hdr: hdr, Txt: []string{r.Value}}, true
 	}
+}
+
+func parseTLSA(hdr dns.RR_Header, r recordRow) (dns.RR, bool) {
+	parts := strings.Fields(r.Value)
+	if len(parts) != 4 {
+		return nil, false
+	}
+
+	usage, err1 := strconv.ParseUint(parts[0], 10, 8)
+	selector, err2 := strconv.ParseUint(parts[1], 10, 8)
+	matchingType, err3 := strconv.ParseUint(parts[2], 10, 8)
+	if err1 != nil || err2 != nil || err3 != nil {
+		return nil, false
+	}
+
+	return &dns.TLSA{
+		Hdr:          hdr,
+		Usage:        uint8(usage),
+		Selector:     uint8(selector),
+		MatchingType: uint8(matchingType),
+		Certificate:  parts[3],
+	}, true
 }
 
 func ownerName(zoneName, qname, recordName string) string {
@@ -348,17 +491,23 @@ func parseSRV(hdr dns.RR_Header, r recordRow) (dns.RR, bool) {
 		return nil, false
 	}
 
-	weight, err1 := strconv.ParseUint(parts[0], 10, 16)
-	port, err2 := strconv.ParseUint(parts[1], 10, 16)
-	if err1 != nil || err2 != nil {
+	priority, err1 := strconv.ParseUint(parts[0], 10, 16)
+	weight, err2 := strconv.ParseUint(parts[1], 10, 16)
+	port, err3 := strconv.ParseUint(parts[2], 10, 16)
+	if err1 != nil || err2 != nil || err3 != nil {
 		return nil, false
+	}
+
+	target := ""
+	if len(parts) > 3 {
+		target = strings.Join(parts[3:], " ")
 	}
 
 	return &dns.SRV{
 		Hdr:      hdr,
-		Priority: uint16(r.Priority),
+		Priority: uint16(priority),
 		Weight:   uint16(weight),
 		Port:     uint16(port),
-		Target:   fqdn(strings.Join(parts[2:], " ")),
+		Target:   fqdn(target),
 	}, true
 }
