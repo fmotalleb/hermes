@@ -24,6 +24,8 @@ This file is for agents working in this repository.
 - Follow the existing route style: list routes use `GET`, detail routes use `GET`, mutations use `POST`.
 - Nested record routes live under `/api/zones/{zone}/records`.
 - Forward zone routes live under `/api/forward-zones`.
+- Detail handlers should translate missing resources into `http.ErrorEntityNotFound` instead of returning raw database errors.
+- Use the entity-specific path parameter name in not-found responses, for example `zone_id`, `forward_zone_id`, or `record_id`.
 
 ## Query Patterns
 
@@ -51,6 +53,13 @@ This file is for agents working in this repository.
 - Run `go test ./...` before finishing a change when feasible.
 - Do not revert unrelated user changes.
 - Keep changes minimal and aligned with the current architecture.
+
+## Logging
+
+- Use `ctx.Error(...)` when a handler needs to log an actionable failure before returning an error to the client.
+- Log a short, specific message that names the failing operation, for example `failed to get zone`.
+- For expected not-found cases, log the underlying error once and return `http.ErrorEntityNotFound`.
+- Avoid noisy or duplicated logs in repository and query helpers unless you are adding useful diagnostic context.
 
 ## Practical Notes
 

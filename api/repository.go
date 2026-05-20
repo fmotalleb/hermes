@@ -17,8 +17,10 @@ func newRepository() *repository {
 	return new(repository)
 }
 
-const zonesCacheTTL = 15 * time.Second
-const zonesCacheVersionKey = "zones:list:version"
+const (
+	zonesCacheTTL        = 15 * time.Second
+	zonesCacheVersionKey = "zones:list:version"
+)
 
 func zonesCacheKey(version uint64, limit, offset uint32) string {
 	return fmt.Sprintf(

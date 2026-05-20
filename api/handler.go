@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"gofr.dev/pkg/gofr"
+	"gofr.dev/pkg/gofr/http"
 
 	"github.com/fmotalleb/hermes/models"
 	"github.com/fmotalleb/hermes/request"
@@ -17,6 +18,14 @@ type handler struct {
 func newHandler(r *repository) *handler {
 	return &handler{
 		repo: r,
+	}
+}
+
+func notFoundEntity(ctx *gofr.Context, logMessage, entityName, value string, err error) (any, error) {
+	ctx.Errorf("%s: %v", logMessage, err)
+	return nil, http.ErrorEntityNotFound{
+		Name:  entityName,
+		Value: value,
 	}
 }
 
@@ -35,7 +44,12 @@ func (h *handler) getZones(ctx *gofr.Context) (any, error) {
 }
 
 func (h *handler) getZone(ctx *gofr.Context) (any, error) {
-	return h.repo.getZone(ctx, ctx.PathParam("zone"))
+	zone := ctx.PathParam("zone")
+	if r, err := h.repo.getZone(ctx, zone); err != nil {
+		return notFoundEntity(ctx, "failed to get zone", "zone_id", zone, err)
+	} else {
+		return r, nil
+	}
 }
 
 func (h *handler) createZone(ctx *gofr.Context) (any, error) {
@@ -48,7 +62,12 @@ func (h *handler) createZone(ctx *gofr.Context) (any, error) {
 		return nil, errors.New("zone name is required")
 	}
 
-	return h.repo.createZone(ctx, req)
+	zone, err := h.repo.createZone(ctx, req)
+	if err != nil {
+		return nil, normalizeCreateError(err)
+	}
+
+	return zone, nil
 }
 
 func (h *handler) updateZone(ctx *gofr.Context) (any, error) {
@@ -61,7 +80,12 @@ func (h *handler) updateZone(ctx *gofr.Context) (any, error) {
 		return nil, errors.New("zone name is required")
 	}
 
-	return h.repo.updateZone(ctx, ctx.PathParam("zone"), req)
+	zone, err := h.repo.updateZone(ctx, ctx.PathParam("zone"), req)
+	if err != nil {
+		return nil, normalizeCreateError(err)
+	}
+
+	return zone, nil
 }
 
 func (h *handler) deleteZone(ctx *gofr.Context) (any, error) {
@@ -84,7 +108,12 @@ func (h *handler) getForwardZones(ctx *gofr.Context) (any, error) {
 }
 
 func (h *handler) getForwardZone(ctx *gofr.Context) (any, error) {
-	return h.repo.getForwardZone(ctx, ctx.PathParam("id"))
+	id := ctx.PathParam("id")
+	if r, err := h.repo.getForwardZone(ctx, id); err != nil {
+		return notFoundEntity(ctx, "failed to get forward zone", "forward_zone_id", id, err)
+	} else {
+		return r, nil
+	}
 }
 
 func (h *handler) createForwardZone(ctx *gofr.Context) (any, error) {
@@ -100,7 +129,12 @@ func (h *handler) createForwardZone(ctx *gofr.Context) (any, error) {
 		return nil, errors.New("forward zone addresses are required")
 	}
 
-	return h.repo.createForwardZone(ctx, req)
+	zone, err := h.repo.createForwardZone(ctx, req)
+	if err != nil {
+		return nil, normalizeCreateError(err)
+	}
+
+	return zone, nil
 }
 
 func (h *handler) updateForwardZone(ctx *gofr.Context) (any, error) {
@@ -116,7 +150,12 @@ func (h *handler) updateForwardZone(ctx *gofr.Context) (any, error) {
 		return nil, errors.New("forward zone addresses are required")
 	}
 
-	return h.repo.updateForwardZone(ctx, ctx.PathParam("id"), req)
+	zone, err := h.repo.updateForwardZone(ctx, ctx.PathParam("id"), req)
+	if err != nil {
+		return nil, normalizeCreateError(err)
+	}
+
+	return zone, nil
 }
 
 func (h *handler) deleteForwardZone(ctx *gofr.Context) (any, error) {
@@ -139,7 +178,13 @@ func (h *handler) getZoneRecords(ctx *gofr.Context) (any, error) {
 }
 
 func (h *handler) getRecord(ctx *gofr.Context) (any, error) {
-	return h.repo.getRecord(ctx, ctx.PathParam("zone"), ctx.PathParam("id"))
+	zoneID := ctx.PathParam("zone")
+	id := ctx.PathParam("id")
+	if r, err := h.repo.getRecord(ctx, zoneID, id); err != nil {
+		return notFoundEntity(ctx, "failed to get record", "record_id", id, err)
+	} else {
+		return r, nil
+	}
 }
 
 func (h *handler) createRecord(ctx *gofr.Context) (any, error) {
@@ -159,7 +204,12 @@ func (h *handler) createRecord(ctx *gofr.Context) (any, error) {
 		return nil, fmt.Errorf("%w: %s", errInvalidRecordType, req.Type)
 	}
 
-	return h.repo.createRecord(ctx, ctx.PathParam("zone"), req)
+	record, err := h.repo.createRecord(ctx, ctx.PathParam("zone"), req)
+	if err != nil {
+		return nil, normalizeCreateError(err)
+	}
+
+	return record, nil
 }
 
 func (h *handler) updateRecord(ctx *gofr.Context) (any, error) {
@@ -179,7 +229,12 @@ func (h *handler) updateRecord(ctx *gofr.Context) (any, error) {
 		return nil, fmt.Errorf("%w: %s", errInvalidRecordType, req.Type)
 	}
 
-	return h.repo.updateRecord(ctx, ctx.PathParam("zone"), ctx.PathParam("id"), req)
+	record, err := h.repo.updateRecord(ctx, ctx.PathParam("zone"), ctx.PathParam("id"), req)
+	if err != nil {
+		return nil, normalizeCreateError(err)
+	}
+
+	return record, nil
 }
 
 func (h *handler) deleteRecord(ctx *gofr.Context) (any, error) {

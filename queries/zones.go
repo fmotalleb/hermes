@@ -143,7 +143,6 @@ func CreateZone(ctx *gofr.Context, name string, forwardZoneID *string, ttl *uint
 		forwardZoneID,
 		ttl,
 	)
-
 	return scanZone(row)
 }
 
