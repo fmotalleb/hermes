@@ -7,11 +7,10 @@ http:
   method: POST
   url: "{{base_url_zones}}"
   body:
-    mimeType: application/json
-    text: |
+    type: json
+    data: |-
       {
-        "name": "example.com",
-        "forward_zone_id": "",
+        "name": "local",
         "ttl": 300
       }
   auth: inherit
@@ -21,4 +20,3 @@ settings:
   timeout: 0
   followRedirects: true
   maxRedirects: 5
-

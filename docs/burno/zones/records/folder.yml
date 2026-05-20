@@ -9,5 +9,4 @@ request:
     - name: base_url_zone_records
       value: "{{base_url}}/zones/{{zone_id}}/records"
     - name: record_id
-      value: 00000000-0000-0000-0000-000000000000
-
+      value: 019e46d0-134b-7610-bb6d-ea1eab8284cb

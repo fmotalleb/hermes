@@ -3,11 +3,11 @@ package models
 import "time"
 
 type ZoneData struct {
-	ID            string
-	Name          string
-	ForwardZoneID string
-	TTL           uint32
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	RecordCount   int
+	ID            string    `json:"id"`
+	Name          string    `json:"name"`
+	ForwardZoneID string    `json:"forward_zone,omitempty"`
+	TTL           uint32    `json:"ttl"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+	RecordCount   int       `json:"record_count,omitempty"`
 }

@@ -4,8 +4,8 @@ info:
   seq: 5
 
 http:
-  method: POST
-  url: "{{base_url_zones}}/{{zone_id}}/delete"
+  method: DELETE
+  url: "{{base_url_zones}}/{{zone_id}}"
   auth: inherit
 
 settings:
@@ -13,4 +13,3 @@ settings:
   timeout: 0
   followRedirects: true
   maxRedirects: 5
-

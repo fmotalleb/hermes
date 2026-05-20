@@ -25,13 +25,13 @@ const (
 )
 
 type DNSRecord struct {
-	ID        string
-	ZoneID    string
-	Name      string
-	Type      DNSRecordType
-	Value     string
-	TTL       uint32
-	Priority  uint32
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID        string        `json:"id"`
+	ZoneID    string        `json:"zone_id"`
+	Name      string        `json:"name"`
+	Type      DNSRecordType `json:"type"`
+	Value     string        `json:"value"`
+	TTL       uint32        `json:"ttl"`
+	Priority  uint32        `json:"priority"`
+	CreatedAt time.Time     `json:"created_at"`
+	UpdatedAt time.Time     `json:"updated_at"`
 }

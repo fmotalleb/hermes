@@ -7,11 +7,14 @@ http:
   method: POST
   url: "{{base_url_forward_zones}}"
   body:
-    mimeType: application/json
-    text: |
+    type: json
+    data: |-
       {
-        "name": "recursive",
-        "addresses": ["1.1.1.1", "8.8.8.8"]
+        "name":"cloudflare",
+        "addresses": [
+          "udp://1.1.1.1:53",
+          "udp://1.0.0.1:53"
+        ]
       }
   auth: inherit
 
@@ -20,4 +23,3 @@ settings:
   timeout: 0
   followRedirects: true
   maxRedirects: 5
-

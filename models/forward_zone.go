@@ -2,11 +2,11 @@ package models
 
 import "time"
 
-type ForwardZoneOption struct {
-	ID        string
-	Name      string
-	Addresses []string
-	ZoneCount int
-	CreatedAt time.Time
-	UpdatedAt time.Time
+type ForwardZone struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Addresses []string  `json:"addresses"`
+	ZoneCount int       `json:"zone_count,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }

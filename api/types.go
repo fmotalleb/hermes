@@ -7,15 +7,15 @@ import (
 	"github.com/fmotalleb/hermes/models"
 )
 
+type forwardZoneRequest struct {
+	Name      string   `json:"name"`
+	Addresses []string `json:"addresses"`
+}
+
 type zoneRequest struct {
 	Name          string  `json:"name"`
 	ForwardZoneID *string `json:"forward_zone_id,omitempty"`
 	TTL           *uint32 `json:"ttl,omitempty"`
-}
-
-type forwardZoneRequest struct {
-	Name      string   `json:"name"`
-	Addresses []string `json:"addresses"`
 }
 
 type recordRequest struct {

@@ -3,6 +3,7 @@ package queries
 import (
 	"database/sql"
 
+	"github.com/lib/pq"
 	"gofr.dev/pkg/gofr"
 
 	"github.com/fmotalleb/hermes/models"
@@ -74,30 +75,32 @@ RETURNING
 
 const deleteForwardZoneQuery = `DELETE FROM forward_zones WHERE id = $1;`
 
-func scanForwardZone(row scanner) (models.ForwardZoneOption, error) {
-	var zone models.ForwardZoneOption
+func scanForwardZone(row scanner) (models.ForwardZone, error) {
+	var zone models.ForwardZone
+	var addresses pq.StringArray
 	if err := row.Scan(
 		&zone.ID,
 		&zone.Name,
-		&zone.Addresses,
+		&addresses,
 		&zone.ZoneCount,
 		&zone.CreatedAt,
 		&zone.UpdatedAt,
 	); err != nil {
-		return models.ForwardZoneOption{}, err
+		return models.ForwardZone{}, err
 	}
+	zone.Addresses = []string(addresses)
 
 	return zone, nil
 }
 
-func GetForwardZones(ctx *gofr.Context, limit, offset uint32) ([]models.ForwardZoneOption, error) {
+func GetForwardZones(ctx *gofr.Context, limit, offset uint32) ([]models.ForwardZone, error) {
 	rows, err := ctx.SQL.QueryContext(ctx, getForwardZonesQuery, limit, offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	zones := make([]models.ForwardZoneOption, 0)
+	zones := make([]models.ForwardZone, 0)
 	for rows.Next() {
 		zone, err := scanForwardZone(rows)
 		if err != nil {
@@ -109,18 +112,18 @@ func GetForwardZones(ctx *gofr.Context, limit, offset uint32) ([]models.ForwardZ
 	return zones, rows.Err()
 }
 
-func GetForwardZone(ctx *gofr.Context, id string) (models.ForwardZoneOption, error) {
+func GetForwardZone(ctx *gofr.Context, id string) (models.ForwardZone, error) {
 	row := ctx.SQL.QueryRowContext(ctx, getForwardZoneQuery, id)
 	return scanForwardZone(row)
 }
 
-func CreateForwardZone(ctx *gofr.Context, name string, addresses []string) (models.ForwardZoneOption, error) {
-	row := ctx.SQL.QueryRowContext(ctx, createForwardZoneQuery, name, addresses)
+func CreateForwardZone(ctx *gofr.Context, name string, addresses []string) (models.ForwardZone, error) {
+	row := ctx.SQL.QueryRowContext(ctx, createForwardZoneQuery, name, pq.Array(addresses))
 	return scanForwardZone(row)
 }
 
-func UpdateForwardZone(ctx *gofr.Context, id, name string, addresses []string) (models.ForwardZoneOption, error) {
-	row := ctx.SQL.QueryRowContext(ctx, updateForwardZoneQuery, name, addresses, id)
+func UpdateForwardZone(ctx *gofr.Context, id, name string, addresses []string) (models.ForwardZone, error) {
+	row := ctx.SQL.QueryRowContext(ctx, updateForwardZoneQuery, name, pq.Array(addresses), id)
 	return scanForwardZone(row)
 }
 

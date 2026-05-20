@@ -9,5 +9,4 @@ request:
     - name: base_url_forward_zones
       value: "{{base_url}}/forward-zones"
     - name: forward_zone_id
-      value: 00000000-0000-0000-0000-000000000000
-
+      value: 019e46cc-9465-7ae8-a806-6ddea75e34de

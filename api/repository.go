@@ -121,19 +121,19 @@ func (r *repository) deleteZone(ctx *gofr.Context, id string) (any, error) {
 	return fmt.Sprintf("zone successfully deleted with id: %s", id), nil
 }
 
-func (r *repository) getForwardZones(ctx *gofr.Context, limit, offset uint32) ([]models.ForwardZoneOption, error) {
+func (r *repository) getForwardZones(ctx *gofr.Context, limit, offset uint32) ([]models.ForwardZone, error) {
 	return queries.GetForwardZones(ctx, limit, offset)
 }
 
-func (r *repository) getForwardZone(ctx *gofr.Context, id string) (models.ForwardZoneOption, error) {
+func (r *repository) getForwardZone(ctx *gofr.Context, id string) (models.ForwardZone, error) {
 	return queries.GetForwardZone(ctx, id)
 }
 
-func (r *repository) createForwardZone(ctx *gofr.Context, req forwardZoneRequest) (models.ForwardZoneOption, error) {
+func (r *repository) createForwardZone(ctx *gofr.Context, req forwardZoneRequest) (models.ForwardZone, error) {
 	return queries.CreateForwardZone(ctx, req.Name, req.Addresses)
 }
 
-func (r *repository) updateForwardZone(ctx *gofr.Context, id string, req forwardZoneRequest) (models.ForwardZoneOption, error) {
+func (r *repository) updateForwardZone(ctx *gofr.Context, id string, req forwardZoneRequest) (models.ForwardZone, error) {
 	return queries.UpdateForwardZone(ctx, id, req.Name, req.Addresses)
 }
 
