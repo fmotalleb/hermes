@@ -61,7 +61,7 @@ code {
   opacity: 0.7;
   pointer-events: none;
   z-index: 0;
-  animation: drift 18s ease-in-out infinite alternate;
+  /* animation: drift 1s ease-in-out infinite alternate; */
 }
 
 .ambient-a {
@@ -74,7 +74,7 @@ code {
   right: -10rem;
   top: 14rem;
   background: rgba(212, 166, 255, 0.12);
-  animation-duration: 24s;
+  /* animation-duration: 2s; */
 }
 
 .shell {
