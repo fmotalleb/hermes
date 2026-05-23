@@ -25,6 +25,7 @@ const state = {
   records: [],
   selectedZoneId: localStorage.getItem("selectedZoneId") || "",
   selectedForwardZoneId: localStorage.getItem("selectedForwardZoneId") || "",
+  selectedRecordId: "",
   editingRecordId: "",
   loading: false,
 };
@@ -140,7 +141,9 @@ function recordLabel(record) {
 function setZoneSelection(id) {
   state.selectedZoneId = id || "";
   localStorage.setItem("selectedZoneId", state.selectedZoneId);
+  state.selectedRecordId = "";
   renderZoneSelection();
+  renderZones();
   renderRecordState();
 }
 
@@ -148,6 +151,7 @@ function setForwardSelection(id) {
   state.selectedForwardZoneId = id || "";
   localStorage.setItem("selectedForwardZoneId", state.selectedForwardZoneId);
   renderForwardSelection();
+  renderForwardZones();
 }
 
 function resetZoneForm() {
@@ -166,6 +170,7 @@ function resetRecordForm() {
   el.recordTTL.value = "";
   el.recordPriority.value = "";
   el.recordSubmit.textContent = "Create record";
+  state.selectedRecordId = "";
   state.editingRecordId = "";
 }
 
@@ -341,6 +346,7 @@ function renderForwardZones() {
 function renderRecords() {
   const zone = findZone(state.selectedZoneId);
   if (!zone) {
+    el.recordList.innerHTML = "";
     return;
   }
 
@@ -355,7 +361,7 @@ function renderRecords() {
   el.recordList.innerHTML = "";
   for (const record of state.records) {
     const card = document.createElement("article");
-    card.className = `item ${record.id === state.editingRecordId ? "active" : ""}`;
+    card.className = `item ${record.id === state.selectedRecordId ? "active" : ""}`;
     card.innerHTML = `
       <div class="item-head">
         <div>
@@ -443,8 +449,9 @@ async function loadRecords(zoneId = state.selectedZoneId) {
   const list = unwrapList(payload);
   state.records = list;
 
-  const selectedRecord = state.records.find((record) => record.id === state.editingRecordId);
+  const selectedRecord = state.records.find((record) => record.id === state.selectedRecordId);
   if (!selectedRecord) {
+    state.selectedRecordId = "";
     state.editingRecordId = "";
   }
 
@@ -483,6 +490,7 @@ function editRecord(record) {
   el.recordTTL.value = record.ttl || "";
   el.recordPriority.value = record.priority || "";
   el.recordSubmit.textContent = "Update record";
+  state.selectedRecordId = record.id;
   state.editingRecordId = record.id;
   window.scrollTo({ top: 0, behavior: "smooth" });
   renderRecords();
@@ -535,6 +543,7 @@ async function deleteRecord(record) {
   if (state.editingRecordId === record.id) {
     resetRecordForm();
   }
+  state.selectedRecordId = state.editingRecordId === record.id ? "" : state.selectedRecordId;
   await loadRecords(zone.id);
 }
 

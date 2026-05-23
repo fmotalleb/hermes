@@ -61,8 +61,9 @@
             </div>
             <button class="ghost-button" id="refreshAll">Refresh</button>
           </div>
+          <div class="list" id="zoneList"></div>
 
-          <form id="zoneForm" class="form-stack">
+                  <form id="zoneForm" class="form-stack">
             <input type="hidden" id="zoneId" />
             <label>
               <span>Name</span>
@@ -88,7 +89,6 @@
             </div>
           </form>
 
-          <div class="list" id="zoneList"></div>
         </section>
 
         <section class="panel card panel-wide">
@@ -100,7 +100,9 @@
             <div class="selection-chip" id="activeZoneLabel">No zone selected</div>
           </div>
 
-          <form id="recordForm" class="form-stack">
+          <div class="list list-tight" id="recordList"></div>
+
+           <form id="recordForm" class="form-stack">
             <input type="hidden" id="recordId" />
             <div class="form-row">
               <label>
@@ -133,7 +135,6 @@
             <p class="hint">Records are stored using the same field semantics as the API: name, type, value, TTL, and optional priority.</p>
           </form>
 
-          <div class="list list-tight" id="recordList"></div>
         </section>
 
         <section class="panel card">
@@ -145,28 +146,29 @@
             <div class="selection-chip" id="activeForwardLabel">None selected</div>
           </div>
 
+          <div class="list" id="forwardZoneList"></div>
+
           <form id="forwardZoneForm" class="form-stack">
-            <input type="hidden" id="forwardZoneId" />
-            <label>
-              <span>Name</span>
-              <input id="forwardZoneName" type="text" placeholder="corp-forward" autocomplete="off" />
-            </label>
-            <label>
-              <span>Addresses</span>
-              <textarea
-                id="forwardZoneAddresses"
-                rows="6"
-                placeholder="udp://1.1.1.1:53&#10;tcp://9.9.9.9:53&#10;tls://dns.example.com:853"
-              ></textarea>
-            </label>
-            <div class="form-actions">
-              <button class="primary-button" type="submit" id="forwardZoneSubmit">Create forward zone</button>
-              <button class="ghost-button" type="button" id="forwardZoneReset">Clear</button>
-            </div>
-            <p class="hint">Addresses can be plain hostnames or explicit `udp://`, `tcp://`, or `tls://` targets.</p>
+           <input type="hidden" id="forwardZoneId" />
+           <label>
+             <span>Name</span>
+             <input id="forwardZoneName" type="text" placeholder="corp-forward" autocomplete="off" />
+           </label>
+           <label>
+             <span>Addresses</span>
+             <textarea
+               id="forwardZoneAddresses"
+               rows="6"
+               placeholder="udp://1.1.1.1:53&#10;tcp://9.9.9.9:53&#10;tls://dns.example.com:853"
+             ></textarea>
+           </label>
+           <div class="form-actions">
+             <button class="primary-button" type="submit" id="forwardZoneSubmit">Create forward zone</button>
+             <button class="ghost-button" type="button" id="forwardZoneReset">Clear</button>
+           </div>
+           <p class="hint">Addresses can be plain hostnames or explicit `udp://`, `tcp://`, or `tls://` targets.</p>
           </form>
 
-          <div class="list" id="forwardZoneList"></div>
         </section>
       </main>
     </div>
