@@ -591,23 +591,55 @@ func parseSRV(hdr dns.RR_Header, r recordRow) (dns.RR, bool) {
 		return nil, false
 	}
 
-	priority, err1 := strconv.ParseUint(parts[0], 10, 16)
-	weight, err2 := strconv.ParseUint(parts[1], 10, 16)
-	port, err3 := strconv.ParseUint(parts[2], 10, 16)
-	if err1 != nil || err2 != nil || err3 != nil {
-		return nil, false
-	}
+	var (
+		priority uint64
+		weight   uint64
+		port     uint64
+		err1     error
+		err2     error
+		err3     error
+	)
 
-	target := ""
-	if len(parts) > 3 {
-		target = strings.Join(parts[3:], " ")
-	}
+	if r.Priority != 0 {
+		priority = uint64(r.Priority)
+		weight, err1 = strconv.ParseUint(parts[0], 10, 16)
+		port, err2 = strconv.ParseUint(parts[1], 10, 16)
+		target := strings.Join(parts[2:], " ")
+		if target == "" {
+			err3 = strconv.ErrSyntax
+		}
+		if err1 != nil || err2 != nil || err3 != nil {
+			return nil, false
+		}
 
-	return &dns.SRV{
-		Hdr:      hdr,
-		Priority: uint16(priority),
-		Weight:   uint16(weight),
-		Port:     uint16(port),
-		Target:   fqdn(target),
-	}, true
+		return &dns.SRV{
+			Hdr:      hdr,
+			Priority: uint16(priority),
+			Weight:   uint16(weight),
+			Port:     uint16(port),
+			Target:   fqdn(target),
+		}, true
+	} else {
+		if len(parts) < 4 {
+			return nil, false
+		}
+		priority, err1 = strconv.ParseUint(parts[0], 10, 16)
+		weight, err2 = strconv.ParseUint(parts[1], 10, 16)
+		port, err3 = strconv.ParseUint(parts[2], 10, 16)
+		if err1 != nil || err2 != nil || err3 != nil {
+			return nil, false
+		}
+
+		target := ""
+		if len(parts) > 3 {
+			target = strings.Join(parts[3:], " ")
+		}
+		return &dns.SRV{
+			Hdr:      hdr,
+			Priority: uint16(priority),
+			Weight:   uint16(weight),
+			Port:     uint16(port),
+			Target:   fqdn(target),
+		}, true
+	}
 }

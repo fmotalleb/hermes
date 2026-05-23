@@ -367,18 +367,24 @@ function renderRecords() {
       </div>
       <div class="actions">
         <button class="mini-button" data-action="edit">Edit</button>
+        <button class="mini-button" data-action="clone">Clone</button>
         <button class="mini-button danger" data-action="delete">Delete</button>
       </div>
     `;
 
     card.addEventListener("click", (event) => {
       event.stopPropagation();
-      editRecord(record)}
-    );
+      editRecord(record);
+    });
 
     card.querySelector('[data-action="edit"]').addEventListener("click", (event) => {
       event.stopPropagation();
       editRecord(record);
+    });
+
+    card.querySelector('[data-action="clone"]').addEventListener("click", (event) => {
+      event.stopPropagation();
+      cloneRecord(record);
     });
 
     card.querySelector('[data-action="delete"]').addEventListener("click", (event) => {
@@ -486,6 +492,25 @@ function editRecord(record) {
   state.selectedRecordId = record.id;
   state.editingRecordId = record.id;
   renderRecords();
+}
+
+function cloneRecord(record) {
+  const zone = findZone(state.selectedZoneId);
+  if (!zone) {
+    return;
+  }
+
+  el.recordId.value = "";
+  el.recordName.value = record.name;
+  el.recordType.value = record.type;
+  el.recordValue.value = record.value;
+  el.recordTTL.value = record.ttl || "";
+  el.recordPriority.value = record.priority || "";
+  el.recordSubmit.textContent = "Create record";
+  state.selectedRecordId = "";
+  state.editingRecordId = "";
+  renderRecords();
+  renderRecordState();
 }
 
 async function deleteZone(zone) {
