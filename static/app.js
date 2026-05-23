@@ -267,7 +267,8 @@ function renderZones() {
       </div>
     `;
 
-    card.addEventListener("click", () => {
+    card.addEventListener("click", (event) => {
+      event.stopPropagation();
       setZoneSelection(zone.id);
       loadRecords(zone.id);
     });
@@ -297,7 +298,7 @@ function renderForwardZones() {
   el.forwardZoneList.innerHTML = "";
   for (const zone of state.forwardZones) {
     const card = document.createElement("article");
-    card.className = `item ${zone.id === state.selectedForwardZoneId ? "active" : ""}`;
+    card.className = `item item-forward ${zone.id === state.selectedForwardZoneId ? "active" : ""}`;
     const addressChips = zone.addresses
       .map((address) => `<span class="chip">${escapeHtml(address)}</span>`)
       .join("");
@@ -306,9 +307,8 @@ function renderForwardZones() {
       <div class="item-head">
         <div>
           <h3>${escapeHtml(zone.name)}</h3>
-          <p class="meta">${zone.addresses.length} address${zone.addresses.length === 1 ? "" : "es"}</p>
+          <div class="chips">${addressChips || '<span class="chip muted">empty</span>'}</div>
         </div>
-        <div class="chips">${addressChips || '<span class="chip muted">empty</span>'}</div>
       </div>
       <div class="actions">
         <button class="mini-button" data-action="edit">Edit</button>
@@ -316,7 +316,8 @@ function renderForwardZones() {
       </div>
     `;
 
-    card.addEventListener("click", () => {
+    card.addEventListener("click", (event) => {
+      event.stopPropagation();
       setForwardSelection(zone.id);
     });
 
@@ -370,7 +371,10 @@ function renderRecords() {
       </div>
     `;
 
-    card.addEventListener("click", () => editRecord(record));
+    card.addEventListener("click", (event) => {
+      event.stopPropagation();
+      editRecord(record)}
+    );
 
     card.querySelector('[data-action="edit"]').addEventListener("click", (event) => {
       event.stopPropagation();
