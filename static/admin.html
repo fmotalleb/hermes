@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Hermes DNS Console</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-a"></div>
+    <div class="ambient ambient-b"></div>
+    <div class="shell">
+      <header class="hero card">
+        <div>
+          <p class="eyebrow">DNS admin panel</p>
+          <h1>Hermes Control Room</h1>
+          <p class="lede">
+            Manage zones, records, and forwarders with the same CRUD semantics the API already exposes.
+          </p>
+        </div>
+        <div class="hero-meta">
+          <div class="pill" id="apiStatus">API ready</div>
+          <div class="mini-stack">
+            <span>Root: <code>/</code></span>
+            <span>API: <code>/api</code></span>
+          </div>
+        </div>
+      </header>
+
+      <section class="stats">
+        <article class="stat card">
+          <span class="stat-label">Zones</span>
+          <strong id="zoneCount">0</strong>
+          <p>Primary DNS zones</p>
+        </article>
+        <article class="stat card">
+          <span class="stat-label">Records</span>
+          <strong id="recordCount">0</strong>
+          <p>Loaded for the selected zone</p>
+        </article>
+        <article class="stat card">
+          <span class="stat-label">Forward zones</span>
+          <strong id="forwardZoneCount">0</strong>
+          <p>Reusable upstream resolvers</p>
+        </article>
+      </section>
+
+      <main class="workspace">
+        <section class="panel card">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">DNS zones</p>
+              <h2>Zone registry</h2>
+            </div>
+            <button class="ghost-button" id="refreshAll">Refresh</button>
+          </div>
+
+          <form id="zoneForm" class="form-stack">
+            <input type="hidden" id="zoneId" />
+            <label>
+              <span>Name</span>
+              <input id="zoneName" type="text" placeholder="example.com" autocomplete="off" />
+            </label>
+            <label>
+              <span>Forward policy</span>
+              <select id="zoneForwardZoneId"></select>
+            </label>
+            <div class="form-row">
+              <label>
+                <span>TTL</span>
+                <input id="zoneTTL" type="number" min="0" placeholder="300" />
+              </label>
+              <label>
+                <span>&nbsp;</span>
+                <button class="primary-button" type="submit" id="zoneSubmit">Create zone</button>
+              </label>
+            </div>
+            <div class="form-actions">
+              <button class="ghost-button" type="button" id="zoneReset">Clear</button>
+              <span class="hint">Set forward policy to none, default, or a specific forward zone id.</span>
+            </div>
+          </form>
+
+          <div class="list" id="zoneList"></div>
+        </section>
+
+        <section class="panel card panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">DNS records</p>
+              <h2>Records for the active zone</h2>
+            </div>
+            <div class="selection-chip" id="activeZoneLabel">No zone selected</div>
+          </div>
+
+          <form id="recordForm" class="form-stack">
+            <input type="hidden" id="recordId" />
+            <div class="form-row">
+              <label>
+                <span>Name</span>
+                <input id="recordName" type="text" placeholder="www" autocomplete="off" />
+              </label>
+              <label>
+                <span>Type</span>
+                <select id="recordType"></select>
+              </label>
+            </div>
+            <label>
+              <span>Value</span>
+              <input id="recordValue" type="text" placeholder="192.0.2.10" autocomplete="off" />
+            </label>
+            <div class="form-row">
+              <label>
+                <span>TTL</span>
+                <input id="recordTTL" type="number" min="0" placeholder="300" />
+              </label>
+              <label>
+                <span>Priority</span>
+                <input id="recordPriority" type="number" min="0" placeholder="10" />
+              </label>
+            </div>
+            <div class="form-actions">
+              <button class="primary-button" type="submit" id="recordSubmit" disabled>Create record</button>
+              <button class="ghost-button" type="button" id="recordReset">Clear</button>
+            </div>
+            <p class="hint">Records are stored using the same field semantics as the API: name, type, value, TTL, and optional priority.</p>
+          </form>
+
+          <div class="list list-tight" id="recordList"></div>
+        </section>
+
+        <section class="panel card">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Forward zones</p>
+              <h2>Upstream routing</h2>
+            </div>
+            <div class="selection-chip" id="activeForwardLabel">None selected</div>
+          </div>
+
+          <form id="forwardZoneForm" class="form-stack">
+            <input type="hidden" id="forwardZoneId" />
+            <label>
+              <span>Name</span>
+              <input id="forwardZoneName" type="text" placeholder="corp-forward" autocomplete="off" />
+            </label>
+            <label>
+              <span>Addresses</span>
+              <textarea
+                id="forwardZoneAddresses"
+                rows="6"
+                placeholder="udp://1.1.1.1:53&#10;tcp://9.9.9.9:53&#10;tls://dns.example.com:853"
+              ></textarea>
+            </label>
+            <div class="form-actions">
+              <button class="primary-button" type="submit" id="forwardZoneSubmit">Create forward zone</button>
+              <button class="ghost-button" type="button" id="forwardZoneReset">Clear</button>
+            </div>
+            <p class="hint">Addresses can be plain hostnames or explicit `udp://`, `tcp://`, or `tls://` targets.</p>
+          </form>
+
+          <div class="list" id="forwardZoneList"></div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" aria-live="polite"></div>
+    <script src="app.js" defer></script>
+  </body>
+</html>
