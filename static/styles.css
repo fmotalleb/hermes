@@ -98,7 +98,7 @@ code {
   justify-content: space-between;
   align-items: end;
   gap: 1rem;
-  padding: 1.5rem 1.5rem 1.35rem;
+  padding: 1.2rem 1.25rem 1.1rem;
   margin-bottom: 1rem;
   overflow: hidden;
   position: relative;
@@ -183,12 +183,12 @@ code {
 .stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
+  gap: 0.8rem;
   margin-bottom: 1rem;
 }
 
 .stat {
-  padding: 1.1rem 1.2rem;
+  padding: 0.95rem 1rem;
 }
 
 .stat-label {
@@ -216,17 +216,17 @@ code {
 .workspace {
   display: grid;
   grid-template-columns: minmax(280px, 0.9fr) minmax(340px, 1.25fr) minmax(280px, 0.9fr);
-  gap: 1rem;
+  gap: 0.85rem;
   align-items: start;
 }
 
 .panel {
-  padding: 1.2rem;
+  padding: 1rem;
   min-height: 100%;
 }
 
 .panel-wide {
-  min-height: 44rem;
+  min-height: 40rem;
 }
 
 .panel-head {
@@ -234,7 +234,7 @@ code {
   justify-content: space-between;
   align-items: start;
   gap: 0.75rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.8rem;
 }
 
 .panel-head h2 {
@@ -243,13 +243,13 @@ code {
 
 .form-stack {
   display: grid;
-  gap: 0.8rem;
-  padding: 1rem;
+  gap: 0.65rem;
+  padding: 0.85rem;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  margin-top: 1rem;
-  margin-bottom: 1rem;
+  margin-top: 0.85rem;
+  margin-bottom: 0.85rem;
 }
 
 .form-row {
@@ -276,14 +276,14 @@ select {
   border: 1px solid rgba(148, 163, 184, 0.18);
   background: rgba(6, 9, 22, 0.72);
   color: var(--text);
-  padding: 0.8rem 0.95rem;
+  padding: 0.68rem 0.85rem;
   outline: none;
   transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
 }
 
 textarea {
   resize: vertical;
-  min-height: 7.5rem;
+  min-height: 6.2rem;
 }
 
 input:focus,
@@ -296,7 +296,7 @@ select:focus {
 .form-actions {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.55rem;
   flex-wrap: wrap;
 }
 
@@ -304,7 +304,7 @@ select:focus {
 .ghost-button {
   border: 0;
   border-radius: 14px;
-  padding: 0.78rem 1rem;
+  padding: 0.68rem 0.9rem;
   font-weight: 700;
   transition: transform 0.18s ease, opacity 0.18s ease, box-shadow 0.18s ease;
 }
@@ -334,20 +334,20 @@ select:focus {
 
 .list {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.55rem;
 }
 
 .list-tight {
-  gap: 0.6rem;
+  gap: 0.45rem;
 }
 
 .item {
-  padding: 0.95rem;
-  border-radius: 18px;
+  padding: 0.75rem;
+  border-radius: 16px;
   border: 1px solid rgba(148, 163, 184, 0.12);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015));
   display: grid;
-  gap: 0.7rem;
+  gap: 0.5rem;
   cursor: pointer;
   transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
 }
@@ -365,35 +365,35 @@ select:focus {
 .item-head {
   display: flex;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.6rem;
   align-items: start;
 }
 
 .item h3 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.96rem;
 }
 
 .item .meta {
   margin: 0.25rem 0 0;
   color: var(--muted);
-  font-size: 0.84rem;
-  line-height: 1.5;
+  font-size: 0.78rem;
+  line-height: 1.35;
 }
 
 .chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.45rem;
+  gap: 0.3rem;
 }
 
 .chip {
-  padding: 0.4rem 0.62rem;
+  padding: 0.3rem 0.5rem;
   border-radius: 999px;
   background: rgba(141, 214, 255, 0.08);
   border: 1px solid rgba(141, 214, 255, 0.18);
   color: var(--text);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
 }
 
 .chip.muted {
@@ -404,17 +404,17 @@ select:focus {
 
 .actions {
   display: flex;
-  gap: 0.45rem;
+  gap: 0.35rem;
   flex-wrap: wrap;
 }
 
 .mini-button {
   border-radius: 999px;
-  padding: 0.45rem 0.72rem;
+  padding: 0.35rem 0.6rem;
   border: 1px solid rgba(148, 163, 184, 0.14);
   background: rgba(255, 255, 255, 0.04);
   color: var(--text);
-  font-size: 0.8rem;
+  font-size: 0.75rem;
 }
 
 .mini-button.danger {
@@ -425,8 +425,9 @@ select:focus {
 
 .selection-chip {
   color: var(--muted);
-  font-size: 0.84rem;
+  font-size: 0.8rem;
   justify-self: end;
+  padding: 0.42rem 0.75rem;
 }
 
 .selection-chip strong {
@@ -464,7 +465,7 @@ select:focus {
 }
 
 .muted-state {
-  padding: 1rem;
+  padding: 0.8rem;
   border-radius: 16px;
   border: 1px dashed rgba(148, 163, 184, 0.2);
   color: var(--muted);
@@ -511,5 +512,9 @@ select:focus {
 
   .form-row {
     grid-template-columns: 1fr;
+  }
+
+  .panel {
+    padding: 0.85rem;
   }
 }

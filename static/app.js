@@ -130,7 +130,11 @@ function findForwardZone(id) {
 }
 
 function zoneNameById(id) {
-  return findForwardZone(id)?.name || (id ? id : "none");
+  if (!id) {
+    return "default";
+  }
+
+  return findForwardZone(id)?.name || "unresolved";
 }
 
 function recordLabel(record) {
@@ -191,7 +195,7 @@ function renderForwardOptions() {
   for (const zone of state.forwardZones) {
     const option = document.createElement("option");
     option.value = zone.id;
-    option.textContent = `${zone.name} - ${zone.id}`;
+    option.textContent = zone.name;
     el.zoneForwardZoneId.appendChild(option);
   }
 
@@ -230,7 +234,7 @@ function renderForwardSelection() {
     return;
   }
 
-  el.activeForwardLabel.innerHTML = `<strong>${zone.name}</strong> <span>${zone.addresses.length} addresses</span>`;
+  el.activeForwardLabel.innerHTML = `<strong>${zone.name}</strong> <span>${zone.addresses.length}</span>`;
 }
 
 function renderZones() {
@@ -254,23 +258,16 @@ function renderZones() {
           <p class="meta">TTL ${zone.ttl} - ${zone.record_count ?? 0} records</p>
         </div>
         <div class="chips">
-          <span class="chip">${escapeHtml(zone.forward_zone || "default")}</span>
+          <span class="chip">${escapeHtml(zoneNameById(zone.forward_zone))}</span>
         </div>
       </div>
       <div class="actions">
-        <button class="mini-button" data-action="select">Select</button>
         <button class="mini-button" data-action="edit">Edit</button>
         <button class="mini-button danger" data-action="delete">Delete</button>
       </div>
     `;
 
     card.addEventListener("click", () => {
-      setZoneSelection(zone.id);
-      loadRecords(zone.id);
-    });
-
-    card.querySelector('[data-action="select"]').addEventListener("click", (event) => {
-      event.stopPropagation();
       setZoneSelection(zone.id);
       loadRecords(zone.id);
     });
@@ -314,18 +311,12 @@ function renderForwardZones() {
         <div class="chips">${addressChips || '<span class="chip muted">empty</span>'}</div>
       </div>
       <div class="actions">
-        <button class="mini-button" data-action="select">Select</button>
         <button class="mini-button" data-action="edit">Edit</button>
         <button class="mini-button danger" data-action="delete">Delete</button>
       </div>
     `;
 
     card.addEventListener("click", () => {
-      setForwardSelection(zone.id);
-    });
-
-    card.querySelector('[data-action="select"]').addEventListener("click", (event) => {
-      event.stopPropagation();
       setForwardSelection(zone.id);
     });
 
@@ -465,7 +456,6 @@ function editZone(zone) {
   el.zoneForwardZoneId.value = zone.forward_zone || "";
   el.zoneTTL.value = zone.ttl ?? "";
   el.zoneSubmit.textContent = "Update zone";
-  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function editForwardZone(zone) {
@@ -474,7 +464,6 @@ function editForwardZone(zone) {
   el.forwardZoneAddresses.value = zone.addresses.join("\n");
   el.forwardZoneSubmit.textContent = "Update forward zone";
   setForwardSelection(zone.id);
-  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function editRecord(record) {
@@ -492,7 +481,6 @@ function editRecord(record) {
   el.recordSubmit.textContent = "Update record";
   state.selectedRecordId = record.id;
   state.editingRecordId = record.id;
-  window.scrollTo({ top: 0, behavior: "smooth" });
   renderRecords();
 }
 
