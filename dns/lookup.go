@@ -9,49 +9,93 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/fmotalleb/hermes/models"
 )
 
 func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
+	ctx, cancel := context.WithCancel(h.ctx)
+	defer cancel()
+	ctx, span := h.tracer.Start(ctx, "dns.serve")
+
+	defer span.End(trace.WithStackTrace(true))
 	if len(r.Question) == 0 {
 		msg := new(dns.Msg)
 		msg.SetRcode(r, dns.RcodeFormatError)
 		_ = w.WriteMsg(msg)
+		span.SetStatus(codes.Error, "no question in request")
 		return
 	}
 
 	q := r.Question[0]
-	resp, err := h.lookup(context.Background(), q.Name, q.Qtype, r)
+	span.AddEvent("lookup", trace.WithAttributes(
+		attribute.String("name", q.Name),
+		attribute.Int("class", int(q.Qclass)),
+		attribute.Int("type", int(q.Qtype)),
+	))
+	resp, err := h.lookup(ctx, q.Name, q.Qtype, r)
 	if err != nil {
+		span.AddEvent("failed", trace.WithAttributes(
+			attribute.String("error", err.Error()),
+		))
+		span.SetStatus(codes.Error, "failed to lookup the domain")
 		h.logger.Error("dns lookup failed", err)
 		msg := new(dns.Msg)
 		msg.SetRcode(r, dns.RcodeServerFailure)
 		_ = w.WriteMsg(msg)
 		return
 	}
-
 	_ = w.WriteMsg(resp)
+	span.SetStatus(codes.Ok, "ok")
 }
 
 func (h *handler) lookup(ctx context.Context, qname string, qtype uint16, req *dns.Msg) (*dns.Msg, error) {
+	ctx, span := otel.Tracer("dns").Start(ctx, "dns.lookup")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("query.name", qname),
+		attribute.Int("query.type", int(qtype)),
+	)
+
 	qname = normalizeDNSName(qname)
+	span.SetAttributes(attribute.String("query.normalized_name", qname))
 
 	zone, err := h.store.findZone(ctx, qname)
 	if err != nil {
 		if isNoRows(err) {
+			span.AddEvent("zone not found")
+			span.SetStatus(codes.Ok, "nxdomain")
 			return nxdomain(req), nil
 		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to find zone")
 		return nil, err
 	}
+	span.SetAttributes(
+		attribute.String("zone.id", zone.ID),
+		attribute.String("zone.name", zone.Name),
+		attribute.String("zone.forward_zone_id", zone.ForwardZoneID),
+	)
 
 	records, err := h.store.recordsForZone(ctx, zone.ID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to load records")
 		return nil, err
 	}
+	span.SetAttributes(attribute.Int("zone.record_count", len(records)))
 
 	answers := buildAnswers(zone.Name, qname, qtype, records)
 	if len(answers) > 0 {
+		span.AddEvent("answer selected", trace.WithAttributes(
+			attribute.Int("answer_count", len(answers)),
+		))
+		span.SetStatus(codes.Ok, "answered from zone")
 		msg := new(dns.Msg)
 		msg.SetReply(req)
 		msg.Authoritative = true
@@ -61,9 +105,14 @@ func (h *handler) lookup(ctx context.Context, qname string, qtype uint16, req *d
 	}
 
 	if zone.ForwardZoneID != "" {
+		span.AddEvent("forwarding query", trace.WithAttributes(
+			attribute.String("forward_zone_id", zone.ForwardZoneID),
+		))
 		return h.forward(ctx, req, zone.ForwardZoneID)
 	}
 
+	span.AddEvent("no matching records")
+	span.SetStatus(codes.Ok, "no answer")
 	msg := new(dns.Msg)
 	msg.SetReply(req)
 	msg.Authoritative = true
@@ -76,19 +125,40 @@ func (h *handler) forward(
 	req *dns.Msg,
 	forwardZoneID string,
 ) (*dns.Msg, error) {
+	ctx, span := otel.Tracer("dns").Start(ctx, "dns.forward")
+	defer span.End()
+
+	span.SetAttributes(attribute.String("forward_zone_id", forwardZoneID))
+
 	fz, err := h.store.findForwardZone(
 		ctx,
 		forwardZoneID,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to load forward zone")
 		return nil, err
 	}
+	span.SetAttributes(
+		attribute.String("forward_zone.name", fz.Name),
+		attribute.Int("forward_zone.address_count", len(fz.Addresses)),
+	)
 
-	for _, raw := range fz.Addresses {
+	for i, raw := range fz.Addresses {
 		network, target := parseDNSAddress(raw)
 		if target == "" {
+			span.AddEvent("skipped empty forward address", trace.WithAttributes(
+				attribute.Int("index", i),
+				attribute.String("address", raw),
+			))
 			continue
 		}
+
+		span.AddEvent("forward attempt", trace.WithAttributes(
+			attribute.Int("index", i),
+			attribute.String("network", network),
+			attribute.String("target", target),
+		))
 
 		client := &dns.Client{
 			Net:     network,
@@ -101,15 +171,26 @@ func (h *handler) forward(
 			target,
 		)
 		if err != nil {
+			span.AddEvent("forward attempt failed", trace.WithAttributes(
+				attribute.Int("index", i),
+				attribute.String("error", err.Error()),
+			))
 			continue
 		}
 
 		if resp == nil {
+			span.AddEvent("forward returned empty response", trace.WithAttributes(
+				attribute.Int("index", i),
+			))
 			continue
 		}
 
 		// Retry truncated UDP over TCP
 		if resp.Truncated && network == "udp" {
+			span.AddEvent("retrying truncated response over tcp", trace.WithAttributes(
+				attribute.Int("index", i),
+				attribute.String("target", target),
+			))
 			tcpClient := &dns.Client{
 				Net:     "tcp",
 				Timeout: 3 * time.Second,
@@ -121,13 +202,22 @@ func (h *handler) forward(
 				target,
 			)
 			if err == nil && tcpResp != nil {
+				span.AddEvent("forward succeeded over tcp", trace.WithAttributes(
+					attribute.Int("index", i),
+				))
+				span.SetStatus(codes.Ok, "forwarded over tcp")
 				return tcpResp, nil
 			}
 		}
 
+		span.AddEvent("forward succeeded", trace.WithAttributes(
+			attribute.Int("index", i),
+		))
+		span.SetStatus(codes.Ok, "forwarded")
 		return resp, nil
 	}
 
+	span.SetStatus(codes.Error, "all forwarders failed")
 	msg := new(dns.Msg)
 	msg.SetReply(req)
 	msg.Rcode = dns.RcodeServerFailure

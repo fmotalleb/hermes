@@ -6,37 +6,15 @@ import (
 	"errors"
 
 	"github.com/lib/pq"
-	"gofr.dev/pkg/gofr/config"
-	gsql "gofr.dev/pkg/gofr/datasource/sql"
+	"gofr.dev/pkg/gofr/container"
 	"gofr.dev/pkg/gofr/logging"
-	"gofr.dev/pkg/gofr/metrics"
 
 	"github.com/fmotalleb/hermes/models"
 )
 
 type store struct {
-	db     *gsql.DB
+	db     container.DB
 	logger logging.Logger
-}
-
-func newStore(cfg config.Config, logger logging.Logger, metrics metrics.Manager) (*store, error) {
-	db := gsql.NewSQL(cfg, logger, metrics)
-	if db == nil {
-		return nil, errors.New("dns lookup requires a configured SQL database")
-	}
-
-	return &store{
-		db:     db,
-		logger: logger,
-	}, nil
-}
-
-func (s *store) Close() error {
-	if s.db == nil {
-		return nil
-	}
-
-	return s.db.Close()
 }
 
 type zoneRow struct {
@@ -72,7 +50,6 @@ WHERE LOWER($1) = LOWER(name)
    OR LOWER($1) LIKE '%' || '.' || LOWER(name)
 ORDER BY CHAR_LENGTH(name) DESC
 LIMIT 1;`
-
 	var zone zoneRow
 	if err := s.db.QueryRowContext(ctx, query, qname).Scan(
 		&zone.ID,

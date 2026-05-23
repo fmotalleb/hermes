@@ -1,45 +1,53 @@
 package dns
 
 import (
-	"context"
 	"errors"
 	"net"
+	"os"
 
 	"github.com/miekg/dns"
-	"gofr.dev/pkg/gofr/config"
-	"gofr.dev/pkg/gofr/logging"
-	"gofr.dev/pkg/gofr/metrics"
+	"go.opentelemetry.io/otel"
+	"gofr.dev/pkg/gofr"
 
 	"golang.org/x/sync/errgroup"
 )
 
 const defaultListenAddr = "0.0.0.0:5354"
 
-func Serve(ctx context.Context, cfg config.Config, logger logging.Logger, metrics metrics.Manager) error {
-	store, err := newStore(cfg, logger, metrics)
-	if err != nil {
-		return err
+func Serve(ctx *gofr.Context) error {
+	db := ctx.SQL
+	logger := ctx.Logger
+
+	store := &store{
+		db:     db,
+		logger: logger,
 	}
-	defer store.Close()
 
-	h := &handler{store: store, logger: logger}
+	tr := otel.GetTracerProvider().Tracer("dns-server")
 
+	h := &handler{
+		ctx:    ctx,
+		store:  store,
+		logger: logger,
+		tracer: tr,
+	}
+	listenAddr := listenAddr()
 	udpServer := &dns.Server{
-		Addr:    listenAddr(cfg),
+		Addr:    listenAddr,
 		Net:     "udp",
 		Handler: h,
 	}
 
 	tcpServer := &dns.Server{
-		Addr:    listenAddr(cfg),
+		Addr:    listenAddr,
 		Net:     "tcp",
 		Handler: h,
 	}
 
-	group, ctx := errgroup.WithContext(ctx)
+	group, groupCtx := errgroup.WithContext(ctx)
 
 	group.Go(func() error {
-		<-ctx.Done()
+		<-groupCtx.Done()
 		_ = udpServer.Shutdown()
 		_ = tcpServer.Shutdown()
 		return nil
@@ -60,12 +68,12 @@ func Serve(ctx context.Context, cfg config.Config, logger logging.Logger, metric
 		}
 		return err
 	})
-
+	logger.Infof("server started at: %s", listenAddr)
 	return group.Wait()
 }
 
-func listenAddr(cfg config.Config) string {
-	if v := cfg.Get("DNS_LISTEN_ADDR"); v != "" {
+func listenAddr() string {
+	if v := os.Getenv("DNS_LISTEN_ADDR"); v != "" {
 		return v
 	}
 
