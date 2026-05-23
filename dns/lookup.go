@@ -18,9 +18,7 @@ import (
 )
 
 func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
-	ctx, cancel := context.WithCancel(h.ctx)
-	defer cancel()
-	ctx, span := h.tracer.Start(ctx, "dns.serve")
+	ctx, span := h.tracer.Start(context.Background(), "dns.serve")
 
 	defer span.End(trace.WithStackTrace(true))
 	if len(r.Question) == 0 {
@@ -37,6 +35,17 @@ func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		attribute.Int("class", int(q.Qclass)),
 		attribute.Int("type", int(q.Qtype)),
 	))
+	if resp, ok := h.cachedResponse(ctx, r); ok {
+		span.AddEvent("cache hit", trace.WithAttributes(
+			attribute.String("name", q.Name),
+			attribute.Int("class", int(q.Qclass)),
+			attribute.Int("type", int(q.Qtype)),
+		))
+		_ = w.WriteMsg(resp)
+		span.SetStatus(codes.Ok, "returned cached answer")
+		return
+	}
+	span.AddEvent("cache miss")
 	resp, err := h.lookup(ctx, q.Name, q.Qtype, r)
 	if err != nil {
 		span.AddEvent("failed", trace.WithAttributes(
@@ -49,8 +58,9 @@ func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		_ = w.WriteMsg(msg)
 		return
 	}
+	h.cacheResponse(ctx, r, resp)
 	_ = w.WriteMsg(resp)
-	span.SetStatus(codes.Ok, "ok")
+	span.SetStatus(codes.Ok, "returned answer")
 }
 
 func (h *handler) lookup(ctx context.Context, qname string, qtype uint16, req *dns.Msg) (*dns.Msg, error) {

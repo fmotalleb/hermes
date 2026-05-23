@@ -26,10 +26,10 @@ func Serve(ctx *gofr.Context) error {
 	tr := otel.GetTracerProvider().Tracer("dns-server")
 
 	h := &handler{
-		ctx:    ctx,
 		store:  store,
 		logger: logger,
 		tracer: tr,
+		cache:  ctx.Redis,
 	}
 	listenAddr := listenAddr()
 	udpServer := &dns.Server{
@@ -68,7 +68,7 @@ func Serve(ctx *gofr.Context) error {
 		}
 		return err
 	})
-	logger.Infof("server started at: %s", listenAddr)
+	logger.Infof("dns server started at: %s", listenAddr)
 	return group.Wait()
 }
 

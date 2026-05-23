@@ -13,7 +13,8 @@ func main() {
 	app.Migrate(migrations.All())
 	api.Register(app)
 	app.OnStart(func(ctx *gofr.Context) error {
-		return dns.Serve(ctx)
+		go dns.Serve(ctx)
+		return nil
 	})
 	app.Run()
 }

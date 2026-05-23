@@ -20,6 +20,7 @@ func newRepository() *repository {
 const (
 	zonesCacheTTL        = 15 * time.Second
 	zonesCacheVersionKey = "zones:list:version"
+	dnsCacheVersionKey   = "dns:response:version"
 )
 
 func zonesCacheKey(version uint64, limit, offset uint32) string {
@@ -41,7 +42,17 @@ func (r *repository) zonesCacheVersion(ctx *gofr.Context) uint64 {
 }
 
 func (r *repository) invalidateZonesCache(ctx *gofr.Context) {
+	if ctx.Redis == nil {
+		return
+	}
 	_, _ = ctx.Redis.Incr(ctx, zonesCacheVersionKey).Result()
+}
+
+func (r *repository) invalidateDNSCache(ctx *gofr.Context) {
+	if ctx.Redis == nil {
+		return
+	}
+	_, _ = ctx.Redis.Incr(ctx, dnsCacheVersionKey).Result()
 }
 
 func (r *repository) getZones(
@@ -99,6 +110,7 @@ func (r *repository) createZone(ctx *gofr.Context, req zoneRequest) (models.Zone
 	}
 
 	r.invalidateZonesCache(ctx)
+	r.invalidateDNSCache(ctx)
 	return zone, nil
 }
 
@@ -109,6 +121,7 @@ func (r *repository) updateZone(ctx *gofr.Context, id string, req zoneRequest) (
 	}
 
 	r.invalidateZonesCache(ctx)
+	r.invalidateDNSCache(ctx)
 	return zone, nil
 }
 
@@ -118,6 +131,7 @@ func (r *repository) deleteZone(ctx *gofr.Context, id string) (any, error) {
 	}
 
 	r.invalidateZonesCache(ctx)
+	r.invalidateDNSCache(ctx)
 	return fmt.Sprintf("zone successfully deleted with id: %s", id), nil
 }
 
@@ -130,11 +144,23 @@ func (r *repository) getForwardZone(ctx *gofr.Context, id string) (models.Forwar
 }
 
 func (r *repository) createForwardZone(ctx *gofr.Context, req forwardZoneRequest) (models.ForwardZone, error) {
-	return queries.CreateForwardZone(ctx, req.Name, req.Addresses)
+	zone, err := queries.CreateForwardZone(ctx, req.Name, req.Addresses)
+	if err != nil {
+		return models.ForwardZone{}, err
+	}
+
+	r.invalidateDNSCache(ctx)
+	return zone, nil
 }
 
 func (r *repository) updateForwardZone(ctx *gofr.Context, id string, req forwardZoneRequest) (models.ForwardZone, error) {
-	return queries.UpdateForwardZone(ctx, id, req.Name, req.Addresses)
+	zone, err := queries.UpdateForwardZone(ctx, id, req.Name, req.Addresses)
+	if err != nil {
+		return models.ForwardZone{}, err
+	}
+
+	r.invalidateDNSCache(ctx)
+	return zone, nil
 }
 
 func (r *repository) deleteForwardZone(ctx *gofr.Context, id string) (any, error) {
@@ -142,6 +168,7 @@ func (r *repository) deleteForwardZone(ctx *gofr.Context, id string) (any, error
 		return nil, err
 	}
 
+	r.invalidateDNSCache(ctx)
 	return fmt.Sprintf("forward zone successfully deleted with id: %s", id), nil
 }
 
@@ -160,6 +187,7 @@ func (r *repository) createRecord(ctx *gofr.Context, zoneID string, req recordRe
 	}
 
 	r.invalidateZonesCache(ctx)
+	r.invalidateDNSCache(ctx)
 	return zone, nil
 }
 
@@ -170,6 +198,7 @@ func (r *repository) updateRecord(ctx *gofr.Context, zoneID, id string, req reco
 	}
 
 	r.invalidateZonesCache(ctx)
+	r.invalidateDNSCache(ctx)
 	return record, nil
 }
 
@@ -179,5 +208,6 @@ func (r *repository) deleteRecord(ctx *gofr.Context, zoneID, id string) (any, er
 	}
 
 	r.invalidateZonesCache(ctx)
+	r.invalidateDNSCache(ctx)
 	return fmt.Sprintf("record successfully deleted with id: %s", id), nil
 }
