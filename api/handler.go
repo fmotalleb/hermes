@@ -240,3 +240,21 @@ func (h *handler) updateRecord(ctx *gofr.Context) (any, error) {
 func (h *handler) deleteRecord(ctx *gofr.Context) (any, error) {
 	return h.repo.deleteRecord(ctx, ctx.PathParam("zone"), ctx.PathParam("id"))
 }
+
+func (h *handler) getSettings(ctx *gofr.Context) (any, error) {
+	return h.repo.getSettings(ctx)
+}
+
+func (h *handler) updateSettings(ctx *gofr.Context) (any, error) {
+	var req settingsRequest
+	if err := ctx.Bind(&req); err != nil {
+		return nil, err
+	}
+
+	settings, err := h.repo.updateSettings(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return settings, nil
+}

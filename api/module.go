@@ -25,4 +25,6 @@ func Register(app *gofr.App) {
 	app.POST(apiRoute("forward-zones"), handler.createForwardZone)
 	app.POST(apiRoute("forward-zones/{id}"), handler.updateForwardZone)
 	app.DELETE(apiRoute("forward-zones/{id}"), handler.deleteForwardZone)
+	app.GET(apiRoute("settings"), handler.getSettings)
+	app.POST(apiRoute("settings"), handler.updateSettings)
 }

@@ -2,7 +2,9 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"gofr.dev/pkg/gofr"
@@ -104,7 +106,12 @@ func (r *repository) getZone(ctx *gofr.Context, id string) (models.ZoneData, err
 }
 
 func (r *repository) createZone(ctx *gofr.Context, req zoneRequest) (models.ZoneData, error) {
-	zone, err := queries.CreateZone(ctx, req.Name, req.ForwardZoneID, req.TTL)
+	policy, forwardZoneID, err := normalizeForwardPolicyForCreate(req.ForwardPolicy, req.ForwardZoneID)
+	if err != nil {
+		return models.ZoneData{}, err
+	}
+
+	zone, err := queries.CreateZone(ctx, req.Name, policy, forwardZoneID, req.TTL)
 	if err != nil {
 		return models.ZoneData{}, err
 	}
@@ -115,7 +122,17 @@ func (r *repository) createZone(ctx *gofr.Context, req zoneRequest) (models.Zone
 }
 
 func (r *repository) updateZone(ctx *gofr.Context, id string, req zoneRequest) (models.ZoneData, error) {
-	zone, err := queries.UpdateZone(ctx, id, req.Name, req.ForwardZoneID, req.TTL)
+	current, err := queries.GetZone(ctx, id)
+	if err != nil {
+		return models.ZoneData{}, err
+	}
+
+	policy, forwardZoneID, err := normalizeForwardPolicyForUpdate(current, req.ForwardPolicy, req.ForwardZoneID)
+	if err != nil {
+		return models.ZoneData{}, err
+	}
+
+	zone, err := queries.UpdateZone(ctx, id, req.Name, policy, forwardZoneID, req.TTL)
 	if err != nil {
 		return models.ZoneData{}, err
 	}
@@ -164,10 +181,14 @@ func (r *repository) updateForwardZone(ctx *gofr.Context, id string, req forward
 }
 
 func (r *repository) deleteForwardZone(ctx *gofr.Context, id string) (any, error) {
+	if err := queries.DetachForwardZoneFromZones(ctx, id); err != nil {
+		return nil, err
+	}
 	if err := queries.DeleteForwardZone(ctx, id); err != nil {
 		return nil, err
 	}
 
+	r.invalidateZonesCache(ctx)
 	r.invalidateDNSCache(ctx)
 	return fmt.Sprintf("forward zone successfully deleted with id: %s", id), nil
 }
@@ -210,4 +231,67 @@ func (r *repository) deleteRecord(ctx *gofr.Context, zoneID, id string) (any, er
 	r.invalidateZonesCache(ctx)
 	r.invalidateDNSCache(ctx)
 	return fmt.Sprintf("record successfully deleted with id: %s", id), nil
+}
+
+func (r *repository) getSettings(ctx *gofr.Context) (models.Settings, error) {
+	return queries.GetSettings(ctx)
+}
+
+func (r *repository) updateSettings(ctx *gofr.Context, req settingsRequest) (models.Settings, error) {
+	settings, err := queries.UpdateSettings(ctx, req.DefaultForwardZoneID)
+	if err != nil {
+		return models.Settings{}, err
+	}
+
+	r.invalidateDNSCache(ctx)
+	return settings, nil
+}
+
+func normalizeForwardPolicyForCreate(policy, forwardZoneID *string) (string, *string, error) {
+	if policy != nil {
+		switch strings.TrimSpace(strings.ToLower(*policy)) {
+		case "", "default":
+			return "default", nil, nil
+		case "none":
+			return "none", nil, nil
+		case "custom":
+			if forwardZoneID == nil || strings.TrimSpace(*forwardZoneID) == "" {
+				return "", nil, errors.New("forward zone id is required for custom forwarding")
+			}
+			id := strings.TrimSpace(*forwardZoneID)
+			return "custom", &id, nil
+		default:
+			return "", nil, fmt.Errorf("invalid forward policy: %s", *policy)
+		}
+	}
+
+	if forwardZoneID == nil {
+		return "default", nil, nil
+	}
+
+	switch strings.TrimSpace(strings.ToLower(*forwardZoneID)) {
+	case "", "default":
+		return "default", nil, nil
+	case "none":
+		return "none", nil, nil
+	default:
+		id := strings.TrimSpace(*forwardZoneID)
+		return "custom", &id, nil
+	}
+}
+
+func normalizeForwardPolicyForUpdate(current models.ZoneData, policy, forwardZoneID *string) (string, *string, error) {
+	if policy == nil && forwardZoneID == nil {
+		switch current.ForwardPolicy {
+		case "custom":
+			id := current.ForwardZoneID
+			return "custom", &id, nil
+		case "default", "none":
+			return current.ForwardPolicy, nil, nil
+		default:
+			return "default", nil, nil
+		}
+	}
+
+	return normalizeForwardPolicyForCreate(policy, forwardZoneID)
 }

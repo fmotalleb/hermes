@@ -20,8 +20,13 @@ type store struct {
 type zoneRow struct {
 	ID            string
 	Name          string
+	ForwardPolicy string
 	ForwardZoneID string
 	TTL           uint32
+}
+
+type settingsRow struct {
+	DefaultForwardZoneID string
 }
 
 type forwardZoneRow struct {
@@ -43,6 +48,7 @@ func (s *store) findZone(ctx context.Context, qname string) (zoneRow, error) {
 SELECT
   id,
   name,
+  forward_policy,
   COALESCE(forward_zone_id::text, '') AS forward_zone_id,
   ttl
 FROM zones
@@ -54,6 +60,7 @@ LIMIT 1;`
 	if err := s.db.QueryRowContext(ctx, query, qname).Scan(
 		&zone.ID,
 		&zone.Name,
+		&zone.ForwardPolicy,
 		&zone.ForwardZoneID,
 		&zone.TTL,
 	); err != nil {
@@ -61,6 +68,21 @@ LIMIT 1;`
 	}
 
 	return zone, nil
+}
+
+func (s *store) loadSettings(ctx context.Context) (settingsRow, error) {
+	const query = `
+SELECT
+  COALESCE(default_forward_zone_id::text, '') AS default_forward_zone_id
+FROM settings
+WHERE id = 1;`
+
+	var settings settingsRow
+	if err := s.db.QueryRowContext(ctx, query).Scan(&settings.DefaultForwardZoneID); err != nil {
+		return settingsRow{}, err
+	}
+
+	return settings, nil
 }
 
 func (s *store) findForwardZone(ctx context.Context, id string) (forwardZoneRow, error) {

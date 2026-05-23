@@ -5,6 +5,7 @@ import "time"
 type ZoneData struct {
 	ID            string    `json:"id"`
 	Name          string    `json:"name"`
+	ForwardPolicy string    `json:"forward_policy"`
 	ForwardZoneID string    `json:"forward_zone,omitempty"`
 	TTL           uint32    `json:"ttl"`
 	CreatedAt     time.Time `json:"created_at"`

@@ -22,6 +22,9 @@ const recordTypes = [
 const state = {
   zones: [],
   forwardZones: [],
+  settings: {
+    defaultForwardZoneId: localStorage.getItem("defaultForwardZoneId") || "",
+  },
   records: [],
   selectedZoneId: localStorage.getItem("selectedZoneId") || "",
   selectedForwardZoneId: localStorage.getItem("selectedForwardZoneId") || "",
@@ -40,6 +43,9 @@ const el = {
   recordList: document.getElementById("recordList"),
   activeZoneLabel: document.getElementById("activeZoneLabel"),
   activeForwardLabel: document.getElementById("activeForwardLabel"),
+  defaultForwardZoneId: document.getElementById("defaultForwardZoneId"),
+  defaultForwardZoneLabel: document.getElementById("defaultForwardZoneLabel"),
+  defaultForwardZoneSubmit: document.getElementById("defaultForwardZoneSubmit"),
   toast: document.getElementById("toast"),
   refreshAll: document.getElementById("refreshAll"),
   zoneForm: document.getElementById("zoneForm"),
@@ -131,10 +137,30 @@ function findForwardZone(id) {
 
 function zoneNameById(id) {
   if (!id) {
-    return "default";
+    return "unresolved";
   }
 
   return findForwardZone(id)?.name || "unresolved";
+}
+
+function defaultForwardZoneName() {
+  if (!state.settings.defaultForwardZoneId) {
+    return "disabled";
+  }
+
+  return findForwardZone(state.settings.defaultForwardZoneId)?.name || "unresolved";
+}
+
+function forwardPolicyLabel(zone) {
+  switch (zone.forward_policy) {
+    case "none":
+      return "none";
+    case "custom":
+      return zoneNameById(zone.forward_zone);
+    case "default":
+    default:
+      return `default - ${defaultForwardZoneName()}`;
+  }
 }
 
 function recordLabel(record) {
@@ -161,7 +187,7 @@ function setForwardSelection(id) {
 function resetZoneForm() {
   el.zoneId.value = "";
   el.zoneName.value = "";
-  el.zoneForwardZoneId.value = "";
+  el.zoneForwardZoneId.value = "default";
   el.zoneTTL.value = "";
   el.zoneSubmit.textContent = "Create zone";
 }
@@ -188,8 +214,8 @@ function resetForwardZoneForm() {
 function renderForwardOptions() {
   const current = el.zoneForwardZoneId.value;
   el.zoneForwardZoneId.innerHTML = `
-    <option value="">none</option>
-    <option value="default">default</option>
+    <option value="default">default - ${escapeHtml(defaultForwardZoneName())}</option>
+    <option value="none">none</option>
   `;
 
   for (const zone of state.forwardZones) {
@@ -201,6 +227,24 @@ function renderForwardOptions() {
 
   if (current) {
     el.zoneForwardZoneId.value = current;
+  }
+}
+
+function renderDefaultForwardZoneOptions() {
+  const current = el.defaultForwardZoneId.value;
+  el.defaultForwardZoneId.innerHTML = `
+    <option value="">disabled</option>
+  `;
+
+  for (const zone of state.forwardZones) {
+    const option = document.createElement("option");
+    option.value = zone.id;
+    option.textContent = zone.name;
+    el.defaultForwardZoneId.appendChild(option);
+  }
+
+  if (current) {
+    el.defaultForwardZoneId.value = current;
   }
 }
 
@@ -237,6 +281,11 @@ function renderForwardSelection() {
   el.activeForwardLabel.innerHTML = `<strong>${zone.name}</strong> <span>${zone.addresses.length}</span>`;
 }
 
+function renderSettings() {
+  el.defaultForwardZoneLabel.textContent = `Current default: ${defaultForwardZoneName()}`;
+  renderDefaultForwardZoneOptions();
+}
+
 function renderZones() {
   renderForwardOptions();
 
@@ -258,7 +307,7 @@ function renderZones() {
           <p class="meta">TTL ${zone.ttl} - ${zone.record_count ?? 0} records</p>
         </div>
         <div class="chips">
-          <span class="chip">${escapeHtml(zoneNameById(zone.forward_zone))}</span>
+          <span class="chip">${escapeHtml(forwardPolicyLabel(zone))}</span>
         </div>
       </div>
       <div class="actions">
@@ -436,7 +485,16 @@ async function loadForwardZones() {
   renderForwardZones();
   renderForwardOptions();
   renderForwardSelection();
+  renderSettings();
   renderMetrics();
+}
+
+async function loadSettings() {
+  const payload = await api("/settings");
+  const settings = payload || {};
+  state.settings.defaultForwardZoneId = settings.default_forward_zone_id || "";
+  localStorage.setItem("defaultForwardZoneId", state.settings.defaultForwardZoneId);
+  renderSettings();
 }
 
 async function loadRecords(zoneId = state.selectedZoneId) {
@@ -463,7 +521,7 @@ async function loadRecords(zoneId = state.selectedZoneId) {
 function editZone(zone) {
   el.zoneId.value = zone.id;
   el.zoneName.value = zone.name;
-  el.zoneForwardZoneId.value = zone.forward_zone || "";
+  el.zoneForwardZoneId.value = zone.forward_policy === "custom" ? zone.forward_zone : zone.forward_policy;
   el.zoneTTL.value = zone.ttl ?? "";
   el.zoneSubmit.textContent = "Update zone";
 }
@@ -567,12 +625,23 @@ async function deleteRecord(record) {
 async function submitZone(event) {
   event.preventDefault();
   const zoneId = el.zoneId.value.trim();
-  const forwardZoneId = el.zoneForwardZoneId.value.trim();
-  const normalizedForwardZoneId =
-    forwardZoneId === "" || forwardZoneId === "default" ? "" : forwardZoneId;
+  const selectedForward = el.zoneForwardZoneId.value.trim();
+  let forwardPolicy = "default";
+  let forwardZoneId = null;
+
+  if (selectedForward === "none" || selectedForward === "") {
+    forwardPolicy = "none";
+  } else if (selectedForward === "default") {
+    forwardPolicy = "default";
+  } else {
+    forwardPolicy = "custom";
+    forwardZoneId = selectedForward;
+  }
+
   const body = {
     name: el.zoneName.value.trim(),
-    forward_zone_id: normalizedForwardZoneId,
+    forward_policy: forwardPolicy,
+    forward_zone_id: forwardZoneId,
     ttl: el.zoneTTL.value === "" ? null : Number(el.zoneTTL.value),
   };
 
@@ -605,6 +674,24 @@ async function submitForwardZone(event) {
   showToast(`Saved forward zone ${payload.name || el.forwardZoneName.value.trim()}`);
   resetForwardZoneForm();
   await refreshAll();
+}
+
+async function submitSettings(event) {
+  event.preventDefault();
+  const defaultForwardZoneID = el.defaultForwardZoneId.value.trim();
+
+  const payload = await api("/settings", {
+    method: "POST",
+    body: JSON.stringify({
+      default_forward_zone_id: defaultForwardZoneID === "" ? null : defaultForwardZoneID,
+    }),
+  });
+
+  showToast("Saved default forward zone");
+  state.settings.defaultForwardZoneId = payload.default_forward_zone_id || "";
+  localStorage.setItem("defaultForwardZoneId", state.settings.defaultForwardZoneId);
+  renderSettings();
+  await loadZones();
 }
 
 async function submitRecord(event) {
@@ -643,6 +730,7 @@ async function refreshAll() {
   setLoading(true);
   try {
     await loadForwardZones();
+    await loadSettings();
     await loadZones();
 
     if (state.selectedZoneId) {
@@ -690,6 +778,12 @@ function wireEvents() {
   el.forwardZoneForm.addEventListener("submit", (event) => {
     submitForwardZone(event).catch((error) => showToast(error.message || "Failed to save forward zone", "error"));
   });
+  el.defaultForwardZoneId.addEventListener("change", () => {
+    renderSettings();
+  });
+  el.defaultForwardZoneSubmit.addEventListener("click", (event) => {
+    submitSettings(event).catch((error) => showToast(error.message || "Failed to save settings", "error"));
+  });
   el.recordForm.addEventListener("submit", (event) => {
     submitRecord(event).catch((error) => showToast(error.message || "Failed to save record", "error"));
   });
@@ -708,6 +802,7 @@ function wireEvents() {
 function init() {
   populateRecordTypes();
   wireEvents();
+  resetZoneForm();
   resetRecordForm();
   refreshAll().catch((error) => showToast(error.message || "Failed to initialize", "error"));
 }

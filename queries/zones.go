@@ -12,6 +12,7 @@ const getZonesQuery = `
 SELECT
   z.id,
   z.name,
+  z.forward_policy,
   COALESCE(z.forward_zone_id::text, '') AS forward_zone_id,
   z.ttl,
   z.created_at,
@@ -29,6 +30,7 @@ const getZoneQuery = `
 SELECT
   z.id,
   z.name,
+  z.forward_policy,
   COALESCE(z.forward_zone_id::text, '') AS forward_zone_id,
   z.ttl,
   z.created_at,
@@ -42,11 +44,17 @@ FROM zones z
 WHERE z.id = $1;`
 
 const createZoneQuery = `
-INSERT INTO zones (name, forward_zone_id, ttl)
-VALUES ($1, NULLIF($2::text, '')::uuid, COALESCE($3, 300))
+INSERT INTO zones (name, forward_policy, forward_zone_id, ttl)
+VALUES (
+  $1,
+  $2,
+  CASE WHEN $2 = 'custom' THEN NULLIF($3::text, '')::uuid ELSE NULL END,
+  COALESCE($4, 300)
+)
 RETURNING
   id,
   name,
+  forward_policy,
   COALESCE(forward_zone_id::text, '') AS forward_zone_id,
   ttl,
   created_at,
@@ -61,12 +69,17 @@ const updateZoneQuery = `
 UPDATE zones
 SET
   name = $1,
-  forward_zone_id = NULLIF($2::text, '')::uuid,
-  ttl = COALESCE($3, ttl)
-WHERE id = $4
+  forward_policy = $2,
+  forward_zone_id = CASE
+    WHEN $2 = 'custom' THEN NULLIF($3::text, '')::uuid
+    ELSE NULL
+  END,
+  ttl = COALESCE($4, ttl)
+WHERE id = $5
 RETURNING
   id,
   name,
+  forward_policy,
   COALESCE(forward_zone_id::text, '') AS forward_zone_id,
   ttl,
   created_at,
@@ -84,6 +97,7 @@ func scanZone(row scanner) (models.ZoneData, error) {
 	if err := row.Scan(
 		&zone.ID,
 		&zone.Name,
+		&zone.ForwardPolicy,
 		&zone.ForwardZoneID,
 		&zone.TTL,
 		&zone.CreatedAt,
@@ -112,6 +126,7 @@ func GetZones(ctx *gofr.Context, limit, offset uint32) ([]models.ZoneData, error
 		err := rows.Scan(
 			&z.ID,
 			&z.Name,
+			&z.ForwardPolicy,
 			&z.ForwardZoneID,
 			&z.TTL,
 			&z.CreatedAt,
@@ -132,22 +147,24 @@ func GetZone(ctx *gofr.Context, id string) (models.ZoneData, error) {
 	return scanZone(row)
 }
 
-func CreateZone(ctx *gofr.Context, name string, forwardZoneID *string, ttl *uint32) (models.ZoneData, error) {
+func CreateZone(ctx *gofr.Context, name, forwardPolicy string, forwardZoneID *string, ttl *uint32) (models.ZoneData, error) {
 	row := ctx.SQL.QueryRowContext(
 		ctx,
 		createZoneQuery,
 		name,
+		forwardPolicy,
 		forwardZoneID,
 		ttl,
 	)
 	return scanZone(row)
 }
 
-func UpdateZone(ctx *gofr.Context, id, name string, forwardZoneID *string, ttl *uint32) (models.ZoneData, error) {
+func UpdateZone(ctx *gofr.Context, id, name, forwardPolicy string, forwardZoneID *string, ttl *uint32) (models.ZoneData, error) {
 	row := ctx.SQL.QueryRowContext(
 		ctx,
 		updateZoneQuery,
 		name,
+		forwardPolicy,
 		forwardZoneID,
 		ttl,
 		id,

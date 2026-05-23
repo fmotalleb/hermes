@@ -6,8 +6,10 @@ import (
 )
 
 func All() map[int64]migration.Migrate {
-	return map[int64]migration.Migrate{
-		1: createUpdatedAtFn(),
-		2: createDNSApiSchema(),
+	return map[int64]migration.Migrate {
+	
+		1: createUpdatedAtFn(),	
+		2: createDNSApiSchema(),	
+		20260523212658: settings(),
 	}
 }

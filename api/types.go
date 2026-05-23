@@ -14,6 +14,7 @@ type forwardZoneRequest struct {
 
 type zoneRequest struct {
 	Name          string  `json:"name"`
+	ForwardPolicy *string `json:"forward_policy,omitempty"`
 	ForwardZoneID *string `json:"forward_zone_id,omitempty"`
 	TTL           *uint32 `json:"ttl,omitempty"`
 }
@@ -24,6 +25,10 @@ type recordRequest struct {
 	Value    string               `json:"value"`
 	TTL      *uint32              `json:"ttl,omitempty"`
 	Priority *uint32              `json:"priority,omitempty"`
+}
+
+type settingsRequest struct {
+	DefaultForwardZoneID *string `json:"default_forward_zone_id,omitempty"`
 }
 
 var errInvalidRecordType = errors.New("invalid record type")

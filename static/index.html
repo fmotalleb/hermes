@@ -148,6 +148,20 @@
 
           <div class="list" id="forwardZoneList"></div>
 
+          <form class="form-stack">
+            <div class="form-row">
+              <label>
+                <span>Default forward zone</span>
+                <select id="defaultForwardZoneId"></select>
+              </label>
+              <div class="form-actions">
+                <span class="hint" id="defaultForwardZoneLabel">Current default: disabled</span>
+                <button class="primary-button" type="button" id="defaultForwardZoneSubmit">Save setting</button>
+              </div>
+            </div>
+            <p class="hint">Zones set to <code>default</code> will use this resolver. Pick <code>disabled</code> to turn off forwarding globally.</p>
+          </form>
+
           <form id="forwardZoneForm" class="form-stack">
            <input type="hidden" id="forwardZoneId" />
            <label>

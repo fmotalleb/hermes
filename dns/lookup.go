@@ -79,9 +79,26 @@ func (h *handler) lookup(ctx context.Context, qname string, qtype uint16, req *d
 	if err != nil {
 		if isNoRows(err) {
 			span.AddEvent("zone not found")
+
+			settings, settingsErr := h.store.loadSettings(ctx)
+			if settingsErr != nil {
+				span.RecordError(settingsErr)
+				span.SetStatus(codes.Error, "failed to load settings")
+				return nil, settingsErr
+			}
+
+			if settings.DefaultForwardZoneID != "" {
+				span.AddEvent("forwarding using default forward zone", trace.WithAttributes(
+					attribute.String("forward_zone_id", settings.DefaultForwardZoneID),
+				))
+
+				return h.forward(ctx, req, settings.DefaultForwardZoneID)
+			}
+
 			span.SetStatus(codes.Ok, "nxdomain")
 			return nxdomain(req), nil
 		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to find zone")
 		return nil, err
@@ -89,6 +106,7 @@ func (h *handler) lookup(ctx context.Context, qname string, qtype uint16, req *d
 	span.SetAttributes(
 		attribute.String("zone.id", zone.ID),
 		attribute.String("zone.name", zone.Name),
+		attribute.String("zone.forward_policy", zone.ForwardPolicy),
 		attribute.String("zone.forward_zone_id", zone.ForwardZoneID),
 	)
 
@@ -110,15 +128,28 @@ func (h *handler) lookup(ctx context.Context, qname string, qtype uint16, req *d
 		msg.SetReply(req)
 		msg.Authoritative = true
 		msg.Answer = answers
-		msg.RecursionAvailable = zone.ForwardZoneID == ""
+		msg.RecursionAvailable = false
 		return msg, nil
 	}
 
-	if zone.ForwardZoneID != "" {
+	defaultForwardZoneID := ""
+	if zone.ForwardPolicy == "default" {
+		settings, err := h.store.loadSettings(ctx)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "failed to load settings")
+			return nil, err
+		}
+		defaultForwardZoneID = settings.DefaultForwardZoneID
+	}
+
+	forwardZoneID := effectiveForwardZoneID(zone, defaultForwardZoneID)
+
+	if forwardZoneID != "" {
 		span.AddEvent("forwarding query", trace.WithAttributes(
-			attribute.String("forward_zone_id", zone.ForwardZoneID),
+			attribute.String("forward_zone_id", forwardZoneID),
 		))
-		return h.forward(ctx, req, zone.ForwardZoneID)
+		return h.forward(ctx, req, forwardZoneID)
 	}
 
 	span.AddEvent("no matching records")
@@ -128,6 +159,17 @@ func (h *handler) lookup(ctx context.Context, qname string, qtype uint16, req *d
 	msg.Authoritative = true
 	msg.RecursionAvailable = false
 	return msg, nil
+}
+
+func effectiveForwardZoneID(zone zoneRow, defaultForwardZoneID string) string {
+	switch zone.ForwardPolicy {
+	case "custom":
+		return zone.ForwardZoneID
+	case "default":
+		return defaultForwardZoneID
+	default:
+		return ""
+	}
 }
 
 func (h *handler) forward(

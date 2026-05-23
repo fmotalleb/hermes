@@ -1,19 +1,16 @@
 info:
   name: Update
   type: http
-  seq: 4
+  seq: 2
 
 http:
   method: POST
-  url: "{{base_url_zones}}/{{zone_id}}"
+  url: "{{base_url_settings}}"
   body:
     type: json
     data: |-
       {
-        "name": "google.com",
-        "forward_policy": "none",
-        "forward_zone_id": null,
-        "ttl": 300
+        "default_forward_zone_id": "019e46fa-b559-7e6e-b9ed-a850acfe327e"
       }
   auth: inherit
 

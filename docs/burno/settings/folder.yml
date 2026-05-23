@@ -1,0 +1,10 @@
+info:
+  name: settings
+  type: folder
+  seq: 3
+
+request:
+  auth: inherit
+  variables:
+    - name: base_url_settings
+      value: "{{base_url}}/settings"
