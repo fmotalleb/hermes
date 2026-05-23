@@ -61,10 +61,7 @@ const updateZoneQuery = `
 UPDATE zones
 SET
   name = $1,
-  forward_zone_id = CASE
-    WHEN $2::text IS NULL THEN forward_zone_id
-    ELSE NULLIF($2::text, '')::uuid
-  END,
+  forward_zone_id = NULLIF($2::text, '')::uuid,
   ttl = COALESCE($3, ttl)
 WHERE id = $4
 RETURNING

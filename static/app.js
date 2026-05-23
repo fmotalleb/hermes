@@ -539,9 +539,11 @@ async function submitZone(event) {
   event.preventDefault();
   const zoneId = el.zoneId.value.trim();
   const forwardZoneId = el.zoneForwardZoneId.value.trim();
+  const normalizedForwardZoneId =
+    forwardZoneId === "" || forwardZoneId === "default" ? "" : forwardZoneId;
   const body = {
     name: el.zoneName.value.trim(),
-    forward_zone_id: forwardZoneId === "default" || forwardZoneId === "" ? null : forwardZoneId,
+    forward_zone_id: normalizedForwardZoneId,
     ttl: el.zoneTTL.value === "" ? null : Number(el.zoneTTL.value),
   };
 
