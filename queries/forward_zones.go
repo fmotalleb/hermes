@@ -2,8 +2,8 @@ package queries
 
 import (
 	"database/sql"
+	"encoding/json"
 
-	"github.com/lib/pq"
 	"gofr.dev/pkg/gofr"
 
 	"github.com/fmotalleb/hermes/models"
@@ -13,7 +13,7 @@ const getForwardZonesQuery = `
 SELECT
   id,
   name,
-  COALESCE(addresses, '{}') AS addresses,
+  COALESCE(addresses, '[]'::jsonb) AS addresses,
   (
     SELECT COUNT(*)
     FROM zones z
@@ -30,7 +30,7 @@ const getForwardZoneQuery = `
 SELECT
   id,
   name,
-  COALESCE(addresses, '{}') AS addresses,
+  COALESCE(addresses, '[]'::jsonb) AS addresses,
   (
     SELECT COUNT(*)
     FROM zones z
@@ -44,7 +44,7 @@ WHERE id = $1;`
 
 const createForwardZoneQuery = `
 INSERT INTO forward_zones (name, addresses)
-VALUES ($1, COALESCE($2::text[], '{}'))
+VALUES ($1, COALESCE($2::jsonb, '[]'::jsonb))
 RETURNING
   id,
   name,
@@ -62,7 +62,7 @@ const updateForwardZoneQuery = `
 UPDATE forward_zones
 SET
   name = $1,
-  addresses = COALESCE($2::text[], addresses)
+  addresses = COALESCE($2::jsonb, addresses)
 WHERE id = $3
 RETURNING
   id,
@@ -87,7 +87,7 @@ WHERE forward_policy = 'custom' AND forward_zone_id = $1;`
 
 func scanForwardZone(row scanner) (models.ForwardZone, error) {
 	var zone models.ForwardZone
-	var addresses pq.StringArray
+	var addresses []byte
 	if err := row.Scan(
 		&zone.ID,
 		&zone.Name,
@@ -98,7 +98,14 @@ func scanForwardZone(row scanner) (models.ForwardZone, error) {
 	); err != nil {
 		return models.ForwardZone{}, err
 	}
-	zone.Addresses = []string(addresses)
+
+	if len(addresses) > 0 {
+		if err := json.Unmarshal(addresses, &zone.Addresses); err != nil {
+			return models.ForwardZone{}, err
+		}
+	} else {
+		zone.Addresses = make([]models.ForwardAddress, 0)
+	}
 
 	return zone, nil
 }
@@ -127,13 +134,21 @@ func GetForwardZone(ctx *gofr.Context, id string) (models.ForwardZone, error) {
 	return scanForwardZone(row)
 }
 
-func CreateForwardZone(ctx *gofr.Context, name string, addresses []string) (models.ForwardZone, error) {
-	row := ctx.SQL.QueryRowContext(ctx, createForwardZoneQuery, name, pq.Array(addresses))
+func CreateForwardZone(ctx *gofr.Context, name string, addresses []models.ForwardAddress) (models.ForwardZone, error) {
+	buf, err := json.Marshal(addresses)
+	if err != nil {
+		return models.ForwardZone{}, err
+	}
+	row := ctx.SQL.QueryRowContext(ctx, createForwardZoneQuery, name, buf)
 	return scanForwardZone(row)
 }
 
-func UpdateForwardZone(ctx *gofr.Context, id, name string, addresses []string) (models.ForwardZone, error) {
-	row := ctx.SQL.QueryRowContext(ctx, updateForwardZoneQuery, name, pq.Array(addresses), id)
+func UpdateForwardZone(ctx *gofr.Context, id, name string, addresses []models.ForwardAddress) (models.ForwardZone, error) {
+	buf, err := json.Marshal(addresses)
+	if err != nil {
+		return models.ForwardZone{}, err
+	}
+	row := ctx.SQL.QueryRowContext(ctx, updateForwardZoneQuery, name, buf, id)
 	return scanForwardZone(row)
 }
 

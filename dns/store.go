@@ -3,9 +3,9 @@ package dns
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 
-	"github.com/lib/pq"
 	"gofr.dev/pkg/gofr/container"
 	"gofr.dev/pkg/gofr/logging"
 
@@ -32,7 +32,7 @@ type settingsRow struct {
 type forwardZoneRow struct {
 	ID        string
 	Name      string
-	Addresses []string
+	Addresses []models.ForwardAddress
 }
 
 type recordRow struct {
@@ -90,12 +90,12 @@ func (s *store) findForwardZone(ctx context.Context, id string) (forwardZoneRow,
 SELECT
   id,
   name,
-  COALESCE(addresses, '{}') AS addresses
+  COALESCE(addresses, '[]'::jsonb) AS addresses
 FROM forward_zones
 WHERE id = $1;`
 
 	var zone forwardZoneRow
-	var addresses pq.StringArray
+	var addresses []byte
 	if err := s.db.QueryRowContext(ctx, query, id).Scan(
 		&zone.ID,
 		&zone.Name,
@@ -103,7 +103,14 @@ WHERE id = $1;`
 	); err != nil {
 		return forwardZoneRow{}, err
 	}
-	zone.Addresses = []string(addresses)
+	
+	if len(addresses) > 0 {
+		if err := json.Unmarshal(addresses, &zone.Addresses); err != nil {
+			return forwardZoneRow{}, err
+		}
+	} else {
+		zone.Addresses = make([]models.ForwardAddress, 0)
+	}
 
 	return zone, nil
 }

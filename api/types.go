@@ -8,8 +8,8 @@ import (
 )
 
 type forwardZoneRequest struct {
-	Name      string   `json:"name"`
-	Addresses []string `json:"addresses"`
+	Name      string                 `json:"name"`
+	Addresses []models.ForwardAddress `json:"addresses"`
 }
 
 type zoneRequest struct {

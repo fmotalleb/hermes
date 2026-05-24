@@ -1,8 +1,13 @@
 package dns
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"io"
 	"net"
+	"net/http"
+	"net/url"
 	"path"
 	"strconv"
 	"strings"
@@ -196,36 +201,129 @@ func (h *handler) forward(
 		attribute.Int("forward_zone.address_count", len(fz.Addresses)),
 	)
 
-	for i, raw := range fz.Addresses {
-		network, target := parseDNSAddress(raw)
-		if target == "" {
-			span.AddEvent("skipped empty forward address", trace.WithAttributes(
+	for i, addr := range fz.Addresses {
+		if addr.Address == "" || addr.Port == 0 {
+			span.AddEvent("skipped invalid forward address", trace.WithAttributes(
 				attribute.Int("index", i),
-				attribute.String("address", raw),
+				attribute.String("address_obj", fmt.Sprintf("%+v", addr)),
 			))
 			continue
 		}
 
 		span.AddEvent("forward attempt", trace.WithAttributes(
 			attribute.Int("index", i),
-			attribute.String("network", network),
-			attribute.String("target", target),
+			attribute.String("protocol", addr.Protocol),
+			attribute.String("address", addr.Address),
+			attribute.Int("port", addr.Port),
 		))
 
-		client := &dns.Client{
-			Net:     network,
-			Timeout: 3 * time.Second,
+		target := net.JoinHostPort(addr.Address, strconv.Itoa(addr.Port))
+		var resp *dns.Msg
+		var exchangeErr error
+
+		switch addr.Protocol {
+		case "udp", "tcp", "tls":
+			client := &dns.Client{
+				Net:     addr.Protocol,
+				Timeout: 3 * time.Second,
+			}
+			if addr.Protocol == "tls" && addr.TLSServerName != "" {
+				client.TLSConfig.ServerName = addr.TLSServerName
+			}
+			resp, _, exchangeErr = client.ExchangeContext(
+				ctx,
+				req.Copy(),
+				target,
+			)
+
+			// Retry truncated UDP over TCP
+			if exchangeErr == nil && resp != nil && resp.Truncated && addr.Protocol == "udp" {
+				span.AddEvent("retrying truncated response over tcp", trace.WithAttributes(
+					attribute.Int("index", i),
+					attribute.String("target", target),
+				))
+				tcpClient := &dns.Client{
+					Net:     "tcp",
+					Timeout: 3 * time.Second,
+				}
+				tcpResp, _, tcpErr := tcpClient.ExchangeContext(
+					ctx,
+					req.Copy(),
+					target,
+				)
+				if tcpErr == nil && tcpResp != nil {
+					resp = tcpResp
+					exchangeErr = nil
+				}
+			}
+
+		case "https": // DNS over HTTPS
+			httpClient := &http.Client{Timeout: 3 * time.Second}
+			queryURL := url.URL{
+				Scheme: "https",
+				Host:   target,
+				Path:   addr.DOHPath,
+			}
+			if queryURL.Path == "" {
+				queryURL.Path = "/dns-query"
+			}
+
+			msgBytes, mErr := req.Pack()
+			if mErr != nil {
+				exchangeErr = mErr
+				break
+			}
+
+			httpReq, hErr := http.NewRequestWithContext(
+				ctx,
+				http.MethodPost,
+				queryURL.String(),
+				bytes.NewReader(msgBytes),
+			)
+			if hErr != nil {
+				exchangeErr = hErr
+				break
+			}
+			httpReq.Header.Set("Content-Type", "application/dns-message")
+			httpReq.Header.Set("Accept", "application/dns-message")
+
+			httpResp, hErr := httpClient.Do(httpReq)
+			if hErr != nil {
+				exchangeErr = hErr
+				break
+			}
+			defer httpResp.Body.Close()
+
+			if httpResp.StatusCode != http.StatusOK {
+				exchangeErr = fmt.Errorf("DoH query failed with status: %s", httpResp.Status)
+				break
+			}
+
+			respBytes, rErr := io.ReadAll(httpResp.Body)
+			if rErr != nil {
+				exchangeErr = rErr
+				break
+			}
+
+			dohResp := new(dns.Msg)
+			if uErr := dohResp.Unpack(respBytes); uErr != nil {
+				exchangeErr = uErr
+				break
+			}
+			resp = dohResp
+
+		default:
+			span.AddEvent("unsupported protocol", trace.WithAttributes(
+				attribute.Int("index", i),
+				attribute.String("protocol", addr.Protocol),
+			))
+			continue
 		}
 
-		resp, _, err := client.ExchangeContext(
-			ctx,
-			req.Copy(),
-			target,
-		)
-		if err != nil {
+		if exchangeErr != nil {
 			span.AddEvent("forward attempt failed", trace.WithAttributes(
 				attribute.Int("index", i),
-				attribute.String("error", err.Error()),
+				attribute.String("error", exchangeErr.Error()),
 			))
 			continue
 		}
@@ -235,31 +333,6 @@ func (h *handler) forward(
 				attribute.Int("index", i),
 			))
 			continue
-		}
-
-		// Retry truncated UDP over TCP
-		if resp.Truncated && network == "udp" {
-			span.AddEvent("retrying truncated response over tcp", trace.WithAttributes(
-				attribute.Int("index", i),
-				attribute.String("target", target),
-			))
-			tcpClient := &dns.Client{
-				Net:     "tcp",
-				Timeout: 3 * time.Second,
-			}
-
-			tcpResp, _, err := tcpClient.ExchangeContext(
-				ctx,
-				req.Copy(),
-				target,
-			)
-			if err == nil && tcpResp != nil {
-				span.AddEvent("forward succeeded over tcp", trace.WithAttributes(
-					attribute.Int("index", i),
-				))
-				span.SetStatus(codes.Ok, "forwarded over tcp")
-				return tcpResp, nil
-			}
 		}
 
 		span.AddEvent("forward succeeded", trace.WithAttributes(
@@ -275,40 +348,6 @@ func (h *handler) forward(
 	msg.Rcode = dns.RcodeServerFailure
 
 	return msg, nil
-}
-
-func parseDNSAddress(
-	addr string,
-) (network string, target string) {
-	switch {
-	case strings.HasPrefix(addr, "udp://"):
-		return "udp",
-			strings.TrimPrefix(addr, "udp://")
-
-	case strings.HasPrefix(addr, "tcp://"):
-		return "tcp",
-			strings.TrimPrefix(addr, "tcp://")
-
-	case strings.HasPrefix(addr, "tls://"):
-		return "tcp-tls",
-			strings.TrimPrefix(addr, "tls://")
-
-	default:
-		return "udp", addr
-	}
-}
-
-func normalizeDNSAddress(addr string) string {
-	addr = strings.TrimSpace(addr)
-	if addr == "" {
-		return ""
-	}
-
-	if _, _, err := net.SplitHostPort(addr); err == nil {
-		return addr
-	}
-
-	return net.JoinHostPort(addr, "53")
 }
 
 func nxdomain(req *dns.Msg) *dns.Msg {
