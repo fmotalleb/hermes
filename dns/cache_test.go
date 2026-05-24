@@ -5,16 +5,11 @@ import (
 	"net"
 	"testing"
 
-	"github.com/alicebob/miniredis/v2"
 	"github.com/miekg/dns"
-	goRedis "github.com/redis/go-redis/v9"
 )
 
 func TestDNSResponseCacheRoundTrip(t *testing.T) {
-	s := miniredis.RunT(t)
-	client := goRedis.NewClient(&goRedis.Options{Addr: s.Addr()})
-
-	h := &handler{cache: client}
+	h := &handler{}
 
 	req := new(dns.Msg)
 	req.Id = 42

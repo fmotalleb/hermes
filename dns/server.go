@@ -9,6 +9,8 @@ import (
 	"go.opentelemetry.io/otel"
 	"gofr.dev/pkg/gofr"
 
+	"github.com/fmotalleb/hermes/cache"
+
 	"golang.org/x/sync/errgroup"
 )
 
@@ -29,7 +31,7 @@ func Serve(ctx *gofr.Context) error {
 		store:  store,
 		logger: logger,
 		tracer: tr,
-		cache:  ctx.Redis,
+		cache:  cache.NewMemoryCache(ctx),
 	}
 	listenAddr := listenAddr()
 	udpServer := &dns.Server{

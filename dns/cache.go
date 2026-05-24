@@ -32,7 +32,7 @@ func (h *handler) dnsResponseCacheVersion(ctx context.Context) uint64 {
 		return 0
 	}
 
-	version, err := h.cache.Get(ctx, dnsResponseCacheVersionKey).Uint64()
+	version, err := h.cache.GetUint64(ctx, dnsResponseCacheVersionKey)
 	if err != nil {
 		return 0
 	}
@@ -47,7 +47,7 @@ func (h *handler) cachedResponse(ctx context.Context, req *dns.Msg) (*dns.Msg, b
 
 	q := req.Question[0]
 	key := dnsResponseCacheKey(h.dnsResponseCacheVersion(ctx), q.Name, q.Qtype, q.Qclass)
-	data, err := h.cache.Get(ctx, key).Bytes()
+	data, err := h.cache.GetBytes(ctx, key)
 	if err != nil {
 		return nil, false
 	}
@@ -80,7 +80,7 @@ func (h *handler) cacheResponse(ctx context.Context, req, resp *dns.Msg) {
 
 	q := req.Question[0]
 	key := dnsResponseCacheKey(h.dnsResponseCacheVersion(ctx), q.Name, q.Qtype, q.Qclass)
-	_ = h.cache.Set(ctx, key, data, ttl).Err()
+	_ = h.cache.Set(ctx, key, data, ttl)
 }
 
 func responseCacheTTL(resp *dns.Msg) (time.Duration, bool) {
