@@ -45,7 +45,7 @@ func Serve(ctx *gofr.Context, app *gofr.App) error {
 		tracer: tr,
 		cache:  c,
 	}
-	// TODO this does not receive event submitted
+
 	app.Subscribe(DNSCacheInvalidTopic, func(c *gofr.Context) error {
 		return h.cache.Clear(c)
 	})

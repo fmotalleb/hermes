@@ -2,6 +2,7 @@ package dns
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/miekg/dns"
 	"go.opentelemetry.io/otel"
@@ -12,6 +13,14 @@ import (
 
 func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	ctx, span := h.tracer.Start(context.Background(), "dns.serve")
+	defer func() {
+		err := recover()
+		if err != nil {
+			span.RecordError(fmt.Errorf("dns panic: %s", err))
+			span.SetStatus(codes.Error, "dns panic recovered")
+			h.logger.Errorf("fatal error recovered: %s", err)
+		}
+	}()
 
 	defer span.End(trace.WithStackTrace(true))
 	if len(r.Question) == 0 {
