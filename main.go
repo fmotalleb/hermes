@@ -17,7 +17,7 @@ func main() {
 	app.GET("/", serveStatic)
 	app.GET("/{path:.*}", serveStatic)
 	app.OnStart(func(ctx *gofr.Context) error {
-		go dns.Serve(ctx)
+		go dns.Serve(ctx, app)
 		return nil
 	})
 	app.Run()

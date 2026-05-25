@@ -168,3 +168,12 @@ func (m *memoryCache) Set(_ context.Context, key string, value any, ttl time.Dur
 
 	return nil
 }
+
+func (m *memoryCache) Clear(c context.Context) error {
+	m.mu.Lock()
+	for k := range m.items {
+		delete(m.items, k)
+	}
+	m.mu.Unlock()
+	return nil
+}

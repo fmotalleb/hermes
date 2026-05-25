@@ -9,6 +9,7 @@ import (
 
 	"gofr.dev/pkg/gofr"
 
+	"github.com/fmotalleb/hermes/dns"
 	"github.com/fmotalleb/hermes/models"
 	"github.com/fmotalleb/hermes/queries"
 )
@@ -22,7 +23,6 @@ func newRepository() *repository {
 const (
 	zonesCacheTTL        = 15 * time.Second
 	zonesCacheVersionKey = "zones:list:version"
-	dnsCacheVersionKey   = "dns:response:version"
 )
 
 func zonesCacheKey(version uint64, limit, offset uint32) string {
@@ -51,10 +51,7 @@ func (r *repository) invalidateZonesCache(ctx *gofr.Context) {
 }
 
 func (r *repository) invalidateDNSCache(ctx *gofr.Context) {
-	if ctx.Redis == nil {
-		return
-	}
-	_, _ = ctx.Redis.Incr(ctx, dnsCacheVersionKey).Result()
+	ctx.GetPublisher().Publish(ctx, dns.DNSCacheInvalidTopic, []byte{})
 }
 
 func (r *repository) getZones(

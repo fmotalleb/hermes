@@ -2,6 +2,7 @@ package dns
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,35 +10,23 @@ import (
 )
 
 const (
-	dnsResponseCacheVersionKey   = "dns:response:version"
-	dnsResponseCacheDefaultTTL   = 30 * time.Second
-	dnsResponseCacheNegativeTTL  = 10 * time.Second
-	dnsResponseCacheMaximumTTL   = 60 * time.Second
-	dnsResponseCacheKeyNamespace = "dns:response:v1"
+	DNSCacheInvalidTopic              = "dns:cache:invalidate"
+	dnsResponseCacheDefaultTTL        = 30 * time.Second
+	dnsResponseCacheNegativeTTL       = 10 * time.Second
+	dnsResponseCacheMaximumTTL        = 60 * time.Second
+	dnsResponseCacheRedisKeyNamespace = "dns:response:v1"
+	dnsDefaultCacheBackend            = "memory"
 )
 
-func dnsResponseCacheKey(version uint64, qname string, qtype, qclass uint16) string {
+var dnsCacheInvalidBackend = errors.New("cache backend is invalid")
+
+func dnsResponseCacheKey(qname string, qtype, qclass uint16) string {
 	return fmt.Sprintf(
-		"%s:%d:%s:%d:%d",
-		dnsResponseCacheKeyNamespace,
-		version,
+		"%s:%d:%d",
 		normalizeDNSName(qname),
 		qtype,
 		qclass,
 	)
-}
-
-func (h *handler) dnsResponseCacheVersion(ctx context.Context) uint64 {
-	if h.cache == nil {
-		return 0
-	}
-
-	version, err := h.cache.GetUint64(ctx, dnsResponseCacheVersionKey)
-	if err != nil {
-		return 0
-	}
-
-	return version
 }
 
 func (h *handler) cachedResponse(ctx context.Context, req *dns.Msg) (*dns.Msg, bool) {
@@ -46,7 +35,7 @@ func (h *handler) cachedResponse(ctx context.Context, req *dns.Msg) (*dns.Msg, b
 	}
 
 	q := req.Question[0]
-	key := dnsResponseCacheKey(h.dnsResponseCacheVersion(ctx), q.Name, q.Qtype, q.Qclass)
+	key := dnsResponseCacheKey(q.Name, q.Qtype, q.Qclass)
 	data, err := h.cache.GetBytes(ctx, key)
 	if err != nil {
 		return nil, false
@@ -79,7 +68,7 @@ func (h *handler) cacheResponse(ctx context.Context, req, resp *dns.Msg) {
 	}
 
 	q := req.Question[0]
-	key := dnsResponseCacheKey(h.dnsResponseCacheVersion(ctx), q.Name, q.Qtype, q.Qclass)
+	key := dnsResponseCacheKey(q.Name, q.Qtype, q.Qclass)
 	_ = h.cache.Set(ctx, key, data, ttl)
 }
 

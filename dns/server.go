@@ -2,6 +2,7 @@ package dns
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"os"
 
@@ -16,7 +17,7 @@ import (
 
 const defaultListenAddr = "0.0.0.0:5354"
 
-func Serve(ctx *gofr.Context) error {
+func Serve(ctx *gofr.Context, app *gofr.App) error {
 	db := ctx.SQL
 	logger := ctx.Logger
 
@@ -24,15 +25,31 @@ func Serve(ctx *gofr.Context) error {
 		db:     db,
 		logger: logger,
 	}
-
 	tr := otel.GetTracerProvider().Tracer("dns-server")
+
+	var c cache.Cache
+	switch app.Config.GetOrDefault("DNS_CACHE_BACKEND", dnsDefaultCacheBackend) {
+	case "redis":
+		c = cache.NewRedisCache(ctx.Redis, dnsResponseCacheRedisKeyNamespace)
+	case "memory":
+		c = cache.NewMemoryCache(ctx)
+	case "none":
+		c = cache.NewNoneCache()
+	default:
+		return fmt.Errorf("%w: %s", dnsCacheInvalidBackend, app.Config.Get("DNS_CACHE_BACKEND"))
+	}
 
 	h := &handler{
 		store:  store,
 		logger: logger,
 		tracer: tr,
-		cache:  cache.NewMemoryCache(ctx),
+		cache:  c,
 	}
+	// TODO this does not receive event submitted
+	app.Subscribe(DNSCacheInvalidTopic, func(c *gofr.Context) error {
+		return h.cache.Clear(c)
+	})
+
 	listenAddr := listenAddr()
 	udpServer := &dns.Server{
 		Addr:    listenAddr,

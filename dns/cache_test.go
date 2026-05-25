@@ -6,10 +6,14 @@ import (
 	"testing"
 
 	"github.com/miekg/dns"
+
+	"github.com/fmotalleb/hermes/cache"
 )
 
 func TestDNSResponseCacheRoundTrip(t *testing.T) {
-	h := &handler{}
+	h := &handler{
+		cache: cache.NewMemoryCache(t.Context()),
+	}
 
 	req := new(dns.Msg)
 	req.Id = 42
@@ -51,8 +55,8 @@ func TestDNSResponseCacheRoundTrip(t *testing.T) {
 }
 
 func TestDNSResponseCacheKeyNormalizesName(t *testing.T) {
-	got := dnsResponseCacheKey(7, "WWW.Example.COM.", dns.TypeA, dns.ClassINET)
-	want := "dns:response:v1:7:www.example.com:1:1"
+	got := dnsResponseCacheKey("WWW.Example.COM.", dns.TypeA, dns.ClassINET)
+	want := "www.example.com:1:1"
 
 	if got != want {
 		t.Fatalf("expected %q, got %q", want, got)
