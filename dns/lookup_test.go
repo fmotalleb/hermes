@@ -3,8 +3,9 @@ package dns
 import (
 	"testing"
 
-	"github.com/fmotalleb/hermes/models"
 	"github.com/miekg/dns"
+
+	"github.com/fmotalleb/hermes/models"
 )
 
 func TestSelectBestRecordSetPrefersExactMatchOverGlob(t *testing.T) {
