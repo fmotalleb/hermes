@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 
 	"github.com/miekg/dns"
 	"go.opentelemetry.io/otel"
@@ -18,21 +17,20 @@ import (
 const defaultListenAddr = "0.0.0.0:5354"
 
 func Serve(ctx *gofr.Context, app *gofr.App) error {
-	db := ctx.SQL
-	logger := ctx.Logger
+	db := app.GetSQL()
+	logger := app.Logger()
 
 	store := &store{
 		db:     db,
 		logger: logger,
 	}
 	tr := otel.GetTracerProvider().Tracer("dns-server")
-
 	var c cache.Cache
 	switch app.Config.GetOrDefault("DNS_CACHE_BACKEND", dnsDefaultCacheBackend) {
 	case "redis":
 		c = cache.NewRedisCache(ctx.Redis, dnsResponseCacheRedisKeyNamespace)
 	case "memory":
-		c = cache.NewMemoryCache(ctx)
+		c = cache.NewMemoryCache(ctx, app.Metrics())
 	case "none":
 		c = cache.NewNoneCache()
 	default:
@@ -50,7 +48,7 @@ func Serve(ctx *gofr.Context, app *gofr.App) error {
 		return h.cache.Clear(c)
 	})
 
-	listenAddr := listenAddr()
+	listenAddr := listenAddr(app)
 	udpServer := &dns.Server{
 		Addr:    listenAddr,
 		Net:     "udp",
@@ -91,10 +89,6 @@ func Serve(ctx *gofr.Context, app *gofr.App) error {
 	return group.Wait()
 }
 
-func listenAddr() string {
-	if v := os.Getenv("DNS_LISTEN_ADDR"); v != "" {
-		return v
-	}
-
-	return defaultListenAddr
+func listenAddr(app *gofr.App) string {
+	return app.Config.GetOrDefault("DNS_LISTEN_ADDR", defaultListenAddr)
 }

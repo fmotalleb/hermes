@@ -43,8 +43,7 @@ func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			attribute.Int("class", int(q.Qclass)),
 			attribute.Int("type", int(q.Qtype)),
 		))
-		_ = w.WriteMsg(resp)
-		span.SetStatus(codes.Ok, "returned cached answer")
+		writeAnswer(w, resp, span)
 		return
 	}
 	span.AddEvent("cache miss")
@@ -57,12 +56,21 @@ func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		h.logger.Error("dns lookup failed", err)
 		msg := new(dns.Msg)
 		msg.SetRcode(r, dns.RcodeServerFailure)
-		_ = w.WriteMsg(msg)
+		writeAnswer(w, msg, span)
 		return
 	}
 	h.cacheResponse(ctx, r, resp)
-	_ = w.WriteMsg(resp)
-	span.SetStatus(codes.Ok, "returned answer")
+	writeAnswer(w, resp, span)
+}
+
+func writeAnswer(w dns.ResponseWriter, resp *dns.Msg, span trace.Span) {
+	if err := w.WriteMsg(resp); err != nil {
+		span.SetStatus(codes.Error, "failed to send answer")
+		span.RecordError(err)
+	} else {
+		span.AddEvent("returned answer")
+		span.SetStatus(codes.Ok, "returned answer")
+	}
 }
 
 func (h *handler) lookup(ctx context.Context, qname string, qtype uint16, req *dns.Msg) (*dns.Msg, error) {

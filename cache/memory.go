@@ -7,6 +7,8 @@ import (
 
 	"github.com/gobwas/glob"
 	"github.com/maypok86/otter/v2"
+	"github.com/maypok86/otter/v2/stats"
+	"gofr.dev/pkg/gofr/metrics"
 )
 
 var (
@@ -31,12 +33,16 @@ type MemCacheOption struct {
 	MaxSize int
 }
 
-func NewMemoryCache(ctx context.Context, opts ...MemCacheOption) Cache {
+func NewMemoryCache(ctx context.Context, m metrics.Manager, opts ...MemCacheOption) Cache {
 	maxSize := defaultMaxSize
 	for _, opt := range opts {
 		if opt.MaxSize != 0 {
 			maxSize = opt.MaxSize
 		}
+	}
+	var recorder stats.Recorder
+	if m != nil {
+		recorder = newMemoryCacheRecorder(ctx, m)
 	}
 	storage := otter.Must(&otter.Options[string, entry]{
 		ExpiryCalculator: otter.ExpiryAccessingFunc(func(entry otter.Entry[string, entry]) time.Duration {
@@ -45,14 +51,13 @@ func NewMemoryCache(ctx context.Context, opts ...MemCacheOption) Cache {
 		RefreshCalculator: otter.RefreshWritingFunc(func(entry otter.Entry[string, entry]) time.Duration {
 			return entry.Value.ttl
 		}),
-		MaximumSize: maxSize,
+		MaximumSize:   maxSize,
+		StatsRecorder: recorder,
 	})
 
-	m := &memoryCache{
+	return &memoryCache{
 		storage: storage,
 	}
-
-	return m
 }
 
 func (m *memoryCache) GetBytes(_ context.Context, key string) ([]byte, error) {
