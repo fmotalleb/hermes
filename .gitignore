@@ -39,6 +39,6 @@ dist/
 .env
 .envrc
 
-/__*
+__*
 /hermes
 .tmp*
