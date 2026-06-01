@@ -1,4 +1,4 @@
-package main
+package static
 
 import (
 	"embed"
@@ -13,10 +13,15 @@ import (
 	"gofr.dev/pkg/gofr/http/response"
 )
 
-//go:embed static
+//go:embed *
 var embeddedStatic embed.FS
 
-func serveStatic(ctx *gofr.Context) (any, error) {
+func Register(app *gofr.App) {
+	app.GET("/", staticHandler)
+	app.GET("/{path:.*}", staticHandler)
+}
+
+func staticHandler(ctx *gofr.Context) (any, error) {
 	requestPath := ctx.PathParam("path")
 	requestPath = strings.TrimPrefix(path.Clean("/"+requestPath), "/")
 	if requestPath == "." {
@@ -24,7 +29,7 @@ func serveStatic(ctx *gofr.Context) (any, error) {
 	}
 
 	if requestPath == "" {
-		return readEmbeddedFile("static/index.html")
+		return readEmbeddedFile("index.html")
 	}
 
 	if requestPath == "api" || strings.HasPrefix(requestPath, "api/") {
@@ -32,17 +37,17 @@ func serveStatic(ctx *gofr.Context) (any, error) {
 	}
 
 	if filepath.Ext(requestPath) == "" {
-		return readEmbeddedFile("static/index.html")
+		return readEmbeddedFile("index.html")
 	}
 
-	filePath := path.Join("static", requestPath)
+	filePath := requestPath
 	return readEmbeddedFile(filePath)
 }
 
 func readEmbeddedFile(filePath string) (any, error) {
 	data, err := embeddedStatic.ReadFile(filePath)
 	if err != nil {
-		return response.File{}, gofrHTTP.ErrorEntityNotFound{Name: "file", Value: strings.TrimPrefix(filePath, "static/")}
+		return response.File{}, gofrHTTP.ErrorEntityNotFound{Name: "file", Value: strings.TrimPrefix(filePath, "")}
 	}
 
 	return response.File{
