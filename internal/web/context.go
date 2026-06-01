@@ -47,4 +47,3 @@ func (c *Context) Bind(v any) error {
 func (c *Context) JSON(status int, value any) {
 	writeJSON(c.ResponseWriter, status, value)
 }
-

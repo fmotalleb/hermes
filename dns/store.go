@@ -145,4 +145,3 @@ WHERE zone_id = $1;`
 func isNoRows(err error) bool {
 	return errors.Is(err, sql.ErrNoRows)
 }
-

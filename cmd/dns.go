@@ -24,7 +24,13 @@ var dnsCmd = &cobra.Command{
 		}
 		defer app.Close(context.Background())
 
-		return dns.Serve(ctx, app,
+		bus, err := newPubSubBus(app.Config, app)
+		if err != nil {
+			return err
+		}
+		defer bus.Close()
+
+		return dns.Serve(ctx, app, bus,
 			dns.WithListenAddr(app.Config.DNSListenAddr),
 			dns.WithProtocol(dns.ProtocolUDP),
 		)

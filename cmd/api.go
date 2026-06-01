@@ -11,7 +11,6 @@ import (
 	"github.com/fmotalleb/hermes/api"
 	"github.com/fmotalleb/hermes/auth"
 	"github.com/fmotalleb/hermes/cache"
-	"github.com/fmotalleb/hermes/internal/pubsub"
 	"github.com/fmotalleb/hermes/internal/runtime"
 	"github.com/fmotalleb/hermes/internal/web"
 	"github.com/fmotalleb/hermes/migrations"
@@ -31,10 +30,15 @@ var apiCmd = &cobra.Command{
 		}
 		defer app.Close(context.Background())
 
+		bus, err := newPubSubBus(app.Config, app)
+		if err != nil {
+			return err
+		}
+		defer bus.Close()
+
 		router := web.NewRouter()
 		router.Use(auth.Middleware(app.Config))
 
-		bus := pubsub.New(app.Redis)
 		api.Register(
 			router,
 			app.DB,

@@ -13,7 +13,9 @@
             "env": {
                 "APP_ENV":"local"
             },
-            "args": []
+            "args": [
+                "api"
+            ]
         },
         {
             "name": "Start DNS Server",

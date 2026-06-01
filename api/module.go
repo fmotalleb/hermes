@@ -20,7 +20,7 @@ type Migrator interface {
 	Run(context.Context) error
 }
 
-func Register(router *web.Router, db queries.DB, c cache.Cache, bus *pubsub.Bus, migrator Migrator, metricsHandler http.Handler) {
+func Register(router *web.Router, db queries.DB, c cache.Cache, bus pubsub.Bus, migrator Migrator, metricsHandler http.Handler) {
 	handler := newHandler(newRepository(db, c, bus), migrator, metricsHandler, bus)
 
 	router.GET(apiRoute("zones"), handler.getZones)

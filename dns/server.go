@@ -5,17 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"strings"
 
-	"github.com/miekg/dns"
-	"go.opentelemetry.io/otel"
 	"github.com/fmotalleb/hermes/cache"
 	"github.com/fmotalleb/hermes/internal/pubsub"
 	"github.com/fmotalleb/hermes/internal/runtime"
+	"github.com/miekg/dns"
+	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 )
 
-func Serve(ctx context.Context, app *runtime.App, opts ...ServerOption) error {
+func Serve(ctx context.Context, app *runtime.App, bus pubsub.Bus, opts ...ServerOption) error {
 	cfg := defaultServerConfig()
 	for _, opt := range opts {
 		if err := opt(cfg); err != nil {
@@ -27,7 +26,7 @@ func Serve(ctx context.Context, app *runtime.App, opts ...ServerOption) error {
 	tr := otel.GetTracerProvider().Tracer("dns-server")
 
 	var c cache.Cache
-	switch strings.ToLower(app.Config.CacheBackend) {
+	switch app.Config.CacheBackend {
 	case "redis":
 		c = cache.NewRedisCache(app.Redis, dnsResponseCacheRedisKeyNamespace)
 	case "memory":
@@ -45,7 +44,6 @@ func Serve(ctx context.Context, app *runtime.App, opts ...ServerOption) error {
 		cache:  c,
 	}
 
-	bus := pubsub.New(app.Redis)
 	go func() {
 		_ = bus.Subscribe(ctx, DNSCacheInvalidTopic, func(_ context.Context, _ []byte) error {
 			return h.cache.Clear(ctx)
@@ -119,4 +117,3 @@ func listenAndServe(srv *dns.Server) func() error {
 		return nil
 	}
 }
-

@@ -9,25 +9,25 @@ import (
 )
 
 type Config struct {
-	HTTPPort         int
-	MetricsPort      int
-	AdminNoAuth      bool
-	AdminUser        string
-	AdminPass        string
-	DBDsn            string
-	DBMaxIdle        int
-	DBMaxOpen        int
-	RedisAddr        string
-	RedisDB          int
-	RedisPubSubDB    int
-	RedisPubSubMode  string
-	TraceExporter    string
-	TracerURL        string
-	TracerRatio      float64
-	PubSubBackend    string
-	CacheBackend     string
-	DNSListenAddr    string
-	DNSProtocol      string
+	HTTPPort        int
+	MetricsPort     int
+	AdminNoAuth     bool
+	AdminUser       string
+	AdminPass       string
+	DBDsn           string
+	DBMaxIdle       int
+	DBMaxOpen       int
+	RedisAddr       string
+	RedisDB         int
+	RedisPubSubDB   int
+	RedisPubSubMode string
+	TraceExporter   string
+	TracerURL       string
+	TracerRatio     float64
+	PubSubBackend   string
+	CacheBackend    string
+	DNSListenAddr   string
+	DNSProtocol     string
 }
 
 func LoadConfig() Config {
@@ -47,7 +47,7 @@ func LoadConfig() Config {
 		TraceExporter:   envString("TRACE_EXPORTER", "otlp"),
 		TracerURL:       envString("TRACER_URL", "localhost:4317"),
 		TracerRatio:     envFloat("TRACER_RATIO", 1),
-		PubSubBackend:   envString("PUBSUB_BACKEND", "redis"),
+		PubSubBackend:   envString("PUBSUB_BACKEND", "gochannel"),
 		CacheBackend:    envString("DNS_CACHE_BACKEND", "memory"),
 		DNSListenAddr:   envString("DNS_LISTEN_ADDR", ":53"),
 		DNSProtocol:     envString("DNS_PROTOCOL", "udp"),
@@ -112,4 +112,3 @@ func envBool(name string, fallback bool) bool {
 		return fallback
 	}
 }
-

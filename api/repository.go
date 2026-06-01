@@ -16,15 +16,15 @@ import (
 )
 
 type repository struct {
-	db       queries.DB
-	cache     cache.Cache
-	pubsub    *pubsub.Bus
+	db     queries.DB
+	cache  cache.Cache
+	pubsub pubsub.Bus
 }
 
-func newRepository(db queries.DB, cache cache.Cache, pubsubBus *pubsub.Bus) *repository {
+func newRepository(db queries.DB, cache cache.Cache, pubsubBus pubsub.Bus) *repository {
 	return &repository{
-		db:    db,
-		cache: cache,
+		db:     db,
+		cache:  cache,
 		pubsub: pubsubBus,
 	}
 }
@@ -296,4 +296,3 @@ func normalizeForwardPolicyForUpdate(current models.ZoneData, policy, forwardZon
 
 	return normalizeForwardPolicyForCreate(policy, forwardZoneID)
 }
-

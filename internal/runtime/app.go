@@ -11,13 +11,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	promclient "github.com/prometheus/client_golang/prometheus"
 	promhttp "github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
-	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -34,11 +34,11 @@ type App struct {
 	DB     *sql.DB
 	Redis  *redis.Client
 
-	TraceProvider *sdktrace.TracerProvider
+	TraceProvider  *sdktrace.TracerProvider
 	MeterProvider  *metric.MeterProvider
 	MetricsHandler http.Handler
 
-	httpServer   *http.Server
+	httpServer    *http.Server
 	metricsServer *http.Server
 }
 
@@ -82,11 +82,11 @@ func New(ctx context.Context, logger *slog.Logger) (*App, error) {
 	otel.SetMeterProvider(meterProvider)
 
 	return &App{
-		Config:        cfg,
-		Logger:        logger,
-		DB:            db,
-		Redis:         redisClient,
-		TraceProvider: traceProvider,
+		Config:         cfg,
+		Logger:         logger,
+		DB:             db,
+		Redis:          redisClient,
+		TraceProvider:  traceProvider,
 		MeterProvider:  meterProvider,
 		MetricsHandler: metricsHandler,
 	}, nil
@@ -227,5 +227,5 @@ func newTraceProvider(ctx context.Context, cfg Config, res *resource.Resource) (
 }
 
 func grpcDial(ctx context.Context, target string) (*grpc.ClientConn, error) {
-	return grpc.DialContext(ctx, target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	return grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 }

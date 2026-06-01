@@ -62,9 +62,9 @@ type notFoundError struct {
 	value string
 }
 
-func (e *notFoundError) Error() string { return e.name + " not found: " + e.value }
+func (e *notFoundError) Error() string   { return e.name + " not found: " + e.value }
 func (e *notFoundError) StatusCode() int { return http.StatusNotFound }
-func (e *notFoundError) Body() any { return map[string]string{"name": e.name, "value": e.value} }
+func (e *notFoundError) Body() any       { return map[string]string{"name": e.name, "value": e.value} }
 
 func contentTypeForFile(filePath string, data []byte) string {
 	switch ext := strings.ToLower(filepath.Ext(filePath)); ext {
@@ -104,4 +104,3 @@ func httpDetectContentType(data []byte) string {
 func fsContentType(data []byte) string {
 	return http.DetectContentType(data)
 }
-

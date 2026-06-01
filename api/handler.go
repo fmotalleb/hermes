@@ -1,11 +1,11 @@
 package api
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"database/sql"
 
 	"github.com/fmotalleb/hermes/internal/pubsub"
 	"github.com/fmotalleb/hermes/internal/web"
@@ -13,13 +13,13 @@ import (
 )
 
 type handler struct {
-	repo      *repository
-	migrator  Migrator
+	repo           *repository
+	migrator       Migrator
 	metricsHandler http.Handler
-	pubsub    *pubsub.Bus
+	pubsub         pubsub.Bus
 }
 
-func newHandler(r *repository, migrator Migrator, metrics http.Handler, bus *pubsub.Bus) *handler {
+func newHandler(r *repository, migrator Migrator, metrics http.Handler, bus pubsub.Bus) *handler {
 	return &handler{
 		repo:           r,
 		migrator:       migrator,
@@ -301,7 +301,7 @@ func (h *handler) publishEvent(ctx *web.Context) (any, error) {
 	}
 
 	return map[string]any{
-		"topic":    topic,
+		"topic":     topic,
 		"published": true,
 	}, nil
 }
