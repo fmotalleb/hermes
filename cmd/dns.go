@@ -6,6 +6,7 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/fmotalleb/hermes/dns"
 	"github.com/fmotalleb/hermes/internal/runtime"
@@ -29,11 +30,17 @@ var dnsCmd = &cobra.Command{
 			return err
 		}
 		defer bus.Close()
-
-		return dns.Serve(ctx, app, bus,
-			dns.WithListenAddr(app.Config.DNSListenAddr),
-			dns.WithProtocol(dns.ProtocolUDP),
-		)
+		eg, ctx := errgroup.WithContext(ctx)
+		eg.Go(func() error {
+			return app.StartMetricsServer(ctx, app.MetricsHandler)
+		})
+		eg.Go(func() error {
+			return dns.Serve(ctx, app, bus,
+				dns.WithListenAddr(app.Config.DNSListenAddr),
+				dns.WithProtocol(dns.ProtocolUDP),
+			)
+		})
+		return eg.Wait()
 	},
 }
 

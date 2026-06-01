@@ -2,10 +2,13 @@ package runtime
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -34,6 +37,10 @@ type Config struct {
 }
 
 func LoadConfig() Config {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
 	return Config{
 		HTTPPort:            envInt("HTTP_PORT", 8000),
 		MetricsPort:         envInt("METRICS_PORT", 0),

@@ -15,6 +15,7 @@ func All() []Migration {
 		createDNSApiSchema(),
 		settings(),
 		optimizeForwardZones(),
+		hijack(),
 	}
 }
 
@@ -62,8 +63,11 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 			return fmt.Errorf("check migration %d: %w", migration.Version, err)
 		}
 		if exists {
+			logger.Info("Skipping migration (already applied)", "version", migration.Version, "name", migration.Name)
 			continue
 		}
+
+		logger.Info("Applying migration", "version", migration.Version, "name", migration.Name)
 
 		tx, err := db.BeginTx(ctx, nil)
 		if err != nil {
@@ -72,6 +76,7 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 
 		if err := migration.Up(ctx, tx); err != nil {
 			_ = tx.Rollback()
+			logger.Error("Failed to apply migration", "version", migration.Version, "name", migration.Name, "error", err)
 			return fmt.Errorf("apply migration %d: %w", migration.Version, err)
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations (version, applied_at) VALUES ($1, $2)`, migration.Version, time.Now().UTC()); err != nil {
@@ -81,6 +86,9 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("commit migration %d: %w", migration.Version, err)
 		}
+
+		logger.Info("Successfully applied migration", "version", migration.Version, "name", migration.Name)
+
 	}
 
 	return nil

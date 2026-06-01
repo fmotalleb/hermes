@@ -10,7 +10,13 @@ tool (
 )
 
 require (
+	github.com/ThreeDotsLabs/watermill v1.5.2
+	github.com/ThreeDotsLabs/watermill-amqp/v3 v3.1.0
+	github.com/ThreeDotsLabs/watermill-kafka/v3 v3.1.2
+	github.com/ThreeDotsLabs/watermill-redisstream v1.4.5
+	github.com/ThreeDotsLabs/watermill-sql/v4 v4.1.5
 	github.com/gobwas/glob v0.2.3
+	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.12.3
 	github.com/maypok86/otter/v2 v2.3.0
 	github.com/miekg/dns v1.1.72
@@ -93,11 +99,6 @@ require (
 	github.com/OpenPeeDeeP/depguard/v2 v2.2.1 // indirect
 	github.com/ProtonMail/go-crypto v1.4.1 // indirect
 	github.com/Rican7/retry v0.3.1 // indirect
-	github.com/ThreeDotsLabs/watermill v1.5.2 // indirect
-	github.com/ThreeDotsLabs/watermill-amqp/v3 v3.1.0 // indirect
-	github.com/ThreeDotsLabs/watermill-kafka/v3 v3.1.2 // indirect
-	github.com/ThreeDotsLabs/watermill-redisstream v1.4.5 // indirect
-	github.com/ThreeDotsLabs/watermill-sql/v4 v4.1.5 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/alecthomas/chroma/v2 v2.24.1 // indirect
 	github.com/alecthomas/go-check-sumtype v0.3.1 // indirect
@@ -253,7 +254,6 @@ require (
 	github.com/go-openapi/swag/yamlutils v0.25.5 // indirect
 	github.com/go-openapi/validate v0.25.2 // indirect
 	github.com/go-restruct/restruct v1.2.0-alpha // indirect
-	github.com/go-sql-driver/mysql v1.10.0 // indirect
 	github.com/go-toolsmith/astcast v1.1.0 // indirect
 	github.com/go-toolsmith/astcopy v1.1.0 // indirect
 	github.com/go-toolsmith/astequal v1.2.0 // indirect

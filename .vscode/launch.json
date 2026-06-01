@@ -16,7 +16,7 @@
             "args": [
                 "api",
                 "--log-level=debug",
-                "--migrate=true"
+                "--migrate"
             ]
         },
         {
@@ -25,7 +25,7 @@
             "request": "launch",
             "mode": "auto",
             "cwd": "${workspaceFolder}",
-            "program": "${workspaceFolder}/cmd",
+            "program": "${workspaceFolder}",
             "env": {
                 "APP_ENV":"local"
             },
