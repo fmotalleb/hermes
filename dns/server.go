@@ -4,14 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
+
+	"github.com/miekg/dns"
+	"go.opentelemetry.io/otel"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/fmotalleb/hermes/cache"
 	"github.com/fmotalleb/hermes/internal/pubsub"
 	"github.com/fmotalleb/hermes/internal/runtime"
-	"github.com/miekg/dns"
-	"go.opentelemetry.io/otel"
-	"golang.org/x/sync/errgroup"
 )
 
 func Serve(ctx context.Context, app *runtime.App, bus pubsub.Bus, opts ...ServerOption) error {
@@ -46,6 +48,7 @@ func Serve(ctx context.Context, app *runtime.App, bus pubsub.Bus, opts ...Server
 
 	go func() {
 		_ = bus.Subscribe(ctx, DNSCacheInvalidTopic, func(_ context.Context, _ []byte) error {
+			app.Logger.Info("received invalidation notice", slog.String("id", app.ID().String()))
 			return h.cache.Clear(ctx)
 		})
 	}()

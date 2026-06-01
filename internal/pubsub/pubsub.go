@@ -162,7 +162,6 @@ func NewRabbitMQ(uri, consumerGroup string, logger watermill.LoggerAdapter) (Bus
 	if consumerGroup == "" {
 		consumerGroup = "hermes"
 	}
-
 	config := amqp.NewDurablePubSubConfig(
 		uri,
 		amqp.GenerateQueueNameTopicNameWithSuffix(consumerGroup),

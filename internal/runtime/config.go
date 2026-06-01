@@ -23,7 +23,6 @@ type Config struct {
 	RedisAddr           string
 	RedisDB             int
 	RedisPubSubDB       int
-	RedisPubSubMode     string
 	PubSubBrokers       string
 	PubSubRabbitMQURI   string
 	PubSubConsumerGroup string
@@ -53,7 +52,6 @@ func LoadConfig() Config {
 		RedisAddr:           net.JoinHostPort(envString("REDIS_HOST", "127.0.0.1"), strconv.Itoa(envInt("REDIS_PORT", 6379))),
 		RedisDB:             envInt("REDIS_DB", 0),
 		RedisPubSubDB:       envInt("REDIS_PUBSUB_DB", 1),
-		RedisPubSubMode:     envString("REDIS_PUBSUB_MODE", "pubsub"),
 		PubSubBrokers:       envString("PUBSUB_BROKERS", ""),
 		PubSubRabbitMQURI:   envString("PUBSUB_RABBITMQ_URI", ""),
 		PubSubConsumerGroup: envString("PUBSUB_CONSUMER_GROUP", "hermes"),

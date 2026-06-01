@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	promclient "github.com/prometheus/client_golang/prometheus"
 	promhttp "github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
@@ -29,6 +30,7 @@ import (
 )
 
 type App struct {
+	id     uuid.UUID
 	Config Config
 	Logger *slog.Logger
 	DB     *sql.DB
@@ -43,6 +45,11 @@ type App struct {
 }
 
 func New(ctx context.Context, logger *slog.Logger) (*App, error) {
+	var id uuid.UUID
+	var err error
+	if id, err = uuid.NewV7(); err != nil {
+		return nil, err
+	}
 	cfg := LoadConfig()
 	if logger == nil {
 		logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
@@ -82,6 +89,7 @@ func New(ctx context.Context, logger *slog.Logger) (*App, error) {
 	otel.SetMeterProvider(meterProvider)
 
 	return &App{
+		id:             id,
 		Config:         cfg,
 		Logger:         logger,
 		DB:             db,
@@ -90,6 +98,10 @@ func New(ctx context.Context, logger *slog.Logger) (*App, error) {
 		MeterProvider:  meterProvider,
 		MetricsHandler: metricsHandler,
 	}, nil
+}
+
+func (a *App) ID() uuid.UUID {
+	return a.id
 }
 
 func (a *App) Close(ctx context.Context) error {

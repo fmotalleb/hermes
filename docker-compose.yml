@@ -25,6 +25,18 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  rabbitmq:
+    image: library/rabbitmq:4.3-management
+    container_name: hermes-rabbitmq
+    hostname: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: hermes
+      RABBITMQ_DEFAULT_PASS: hermes
+      RABBITMQ_DEFAULT_VHOST: /
   jaeger:
     image: docker.arvancloud.ir/jaegertracing/jaeger:latest
     ports:
