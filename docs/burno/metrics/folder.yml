@@ -1,0 +1,10 @@
+info:
+  name: metrics
+  type: folder
+  seq: 9
+
+request:
+  auth: inherit
+  variables:
+    - name: base_url_metrics
+      value: "{{base_url}}/metrics"

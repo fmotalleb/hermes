@@ -1,6 +1,8 @@
 package migrations
 
-import "gofr.dev/pkg/gofr/migration"
+import (
+	"context"
+)
 
 const enableExtensions = `
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -98,40 +100,28 @@ BEFORE UPDATE ON records
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();`
 
-func createDNSApiSchema() migration.Migrate {
-	return migration.Migrate{
-		UP: func(d migration.Datasource) error {
-			if _, err := d.SQL.Exec(enableExtensions); err != nil {
-				return err
+func createDNSApiSchema() Migration {
+	return Migration{
+		Version: 2,
+		Name:    "dns_api_schema",
+		Up: func(ctx context.Context, db DBTX) error {
+			steps := []string{
+				enableExtensions,
+				createUInt32Domain,
+				createDNSRecordType,
+				createForwardZonesTable,
+				createZonesTable,
+				createZonesIndexes,
+				createRecordsTable,
+				createRecordsIndexes,
+				createUniqueConstraint,
+				createUpdatedAtTriggers,
 			}
-			if _, err := d.SQL.Exec(createUInt32Domain); err != nil {
-				return err
+			for _, stmt := range steps {
+				if _, err := db.ExecContext(ctx, stmt); err != nil {
+					return err
+				}
 			}
-			if _, err := d.SQL.Exec(createDNSRecordType); err != nil {
-				return err
-			}
-			if _, err := d.SQL.Exec(createForwardZonesTable); err != nil {
-				return err
-			}
-			if _, err := d.SQL.Exec(createZonesTable); err != nil {
-				return err
-			}
-			if _, err := d.SQL.Exec(createZonesIndexes); err != nil {
-				return err
-			}
-			if _, err := d.SQL.Exec(createRecordsTable); err != nil {
-				return err
-			}
-			if _, err := d.SQL.Exec(createRecordsIndexes); err != nil {
-				return err
-			}
-			if _, err := d.SQL.Exec(createUniqueConstraint); err != nil {
-				return err
-			}
-			if _, err := d.SQL.Exec(createUpdatedAtTriggers); err != nil {
-				return err
-			}
-
 			return nil
 		},
 	}

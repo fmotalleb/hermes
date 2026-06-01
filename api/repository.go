@@ -1,23 +1,32 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
-	"gofr.dev/pkg/gofr"
-
+	"github.com/fmotalleb/hermes/cache"
 	"github.com/fmotalleb/hermes/dns"
+	"github.com/fmotalleb/hermes/internal/pubsub"
 	"github.com/fmotalleb/hermes/models"
 	"github.com/fmotalleb/hermes/queries"
 )
 
-type repository struct{}
+type repository struct {
+	db       queries.DB
+	cache     cache.Cache
+	pubsub    *pubsub.Bus
+}
 
-func newRepository() *repository {
-	return new(repository)
+func newRepository(db queries.DB, cache cache.Cache, pubsubBus *pubsub.Bus) *repository {
+	return &repository{
+		db:    db,
+		cache: cache,
+		pubsub: pubsubBus,
+	}
 }
 
 const (
@@ -26,89 +35,84 @@ const (
 )
 
 func zonesCacheKey(version uint64, limit, offset uint32) string {
-	return fmt.Sprintf(
-		"zones:list:%d:%d:%d",
-		version,
-		limit,
-		offset,
-	)
+	return fmt.Sprintf("zones:list:%d:%d:%d", version, limit, offset)
 }
 
-func (r *repository) zonesCacheVersion(ctx *gofr.Context) uint64 {
-	version, err := ctx.Redis.Get(ctx, zonesCacheVersionKey).Uint64()
+func (r *repository) zonesCacheVersion(ctx context.Context) uint64 {
+	if r.cache == nil {
+		return 0
+	}
+
+	data, err := r.cache.GetBytes(ctx, zonesCacheVersionKey)
 	if err != nil {
+		return 0
+	}
+
+	var version uint64
+	if err := json.Unmarshal(data, &version); err != nil {
 		return 0
 	}
 
 	return version
 }
 
-func (r *repository) invalidateZonesCache(ctx *gofr.Context) {
-	if ctx.Redis == nil {
+func (r *repository) invalidateZonesCache(ctx context.Context) {
+	if r.cache == nil {
 		return
 	}
-	_, _ = ctx.Redis.Incr(ctx, zonesCacheVersionKey).Result()
+
+	version := r.zonesCacheVersion(ctx) + 1
+	buf, err := json.Marshal(version)
+	if err != nil {
+		return
+	}
+	_ = r.cache.Set(ctx, zonesCacheVersionKey, buf, 24*time.Hour)
 }
 
-func (r *repository) invalidateDNSCache(ctx *gofr.Context) {
-	ctx.GetPublisher().Publish(ctx, dns.DNSCacheInvalidTopic, []byte{})
+func (r *repository) invalidateDNSCache(ctx context.Context) {
+	if r.pubsub == nil {
+		return
+	}
+	_ = r.pubsub.Publish(ctx, dns.DNSCacheInvalidTopic, []byte{})
 }
 
-func (r *repository) getZones(
-	ctx *gofr.Context,
-	limit,
-	offset uint32,
-) ([]models.ZoneData, error) {
-	key := zonesCacheKey(r.zonesCacheVersion(ctx), limit, offset)
-
-	// Try cache first
-	cached, err := ctx.Redis.Get(ctx, key).Result()
-	if err == nil {
-		var zones []models.ZoneData
-
-		if err := json.Unmarshal(
-			[]byte(cached),
-			&zones,
-		); err == nil {
-			return zones, nil
+func (r *repository) getZones(ctx context.Context, limit, offset uint32) ([]models.ZoneData, error) {
+	if r.cache != nil {
+		key := zonesCacheKey(r.zonesCacheVersion(ctx), limit, offset)
+		if cached, err := r.cache.GetBytes(ctx, key); err == nil {
+			var zones []models.ZoneData
+			if err := json.Unmarshal(cached, &zones); err == nil {
+				return zones, nil
+			}
 		}
 	}
 
-	// Fallback to database
-	zones, err := queries.GetZones(
-		ctx,
-		limit,
-		offset,
-	)
+	zones, err := queries.GetZones(ctx, r.db, limit, offset)
 	if err != nil {
 		return nil, err
 	}
 
-	// Store in cache
-	buf, err := json.Marshal(zones)
-	if err == nil {
-		_ = ctx.Redis.Set(
-			ctx,
-			key,
-			buf,
-			zonesCacheTTL,
-		).Err()
+	if r.cache != nil {
+		key := zonesCacheKey(r.zonesCacheVersion(ctx), limit, offset)
+		if buf, err := json.Marshal(zones); err == nil {
+			_ = r.cache.Set(ctx, key, buf, zonesCacheTTL)
+		}
 	}
 
 	return zones, nil
 }
 
-func (r *repository) getZone(ctx *gofr.Context, id string) (models.ZoneData, error) {
-	return queries.GetZone(ctx, id)
+func (r *repository) getZone(ctx context.Context, id string) (models.ZoneData, error) {
+	return queries.GetZone(ctx, r.db, id)
 }
 
-func (r *repository) createZone(ctx *gofr.Context, req zoneRequest) (models.ZoneData, error) {
+func (r *repository) createZone(ctx context.Context, req zoneRequest) (models.ZoneData, error) {
 	policy, forwardZoneID, err := normalizeForwardPolicyForCreate(req.ForwardPolicy, req.ForwardZoneID)
 	if err != nil {
 		return models.ZoneData{}, err
 	}
 
-	zone, err := queries.CreateZone(ctx, req.Name, policy, forwardZoneID, req.TTL)
+	zone, err := queries.CreateZone(ctx, r.db, req.Name, policy, forwardZoneID, req.TTL)
 	if err != nil {
 		return models.ZoneData{}, err
 	}
@@ -118,8 +122,8 @@ func (r *repository) createZone(ctx *gofr.Context, req zoneRequest) (models.Zone
 	return zone, nil
 }
 
-func (r *repository) updateZone(ctx *gofr.Context, id string, req zoneRequest) (models.ZoneData, error) {
-	current, err := queries.GetZone(ctx, id)
+func (r *repository) updateZone(ctx context.Context, id string, req zoneRequest) (models.ZoneData, error) {
+	current, err := queries.GetZone(ctx, r.db, id)
 	if err != nil {
 		return models.ZoneData{}, err
 	}
@@ -129,7 +133,7 @@ func (r *repository) updateZone(ctx *gofr.Context, id string, req zoneRequest) (
 		return models.ZoneData{}, err
 	}
 
-	zone, err := queries.UpdateZone(ctx, id, req.Name, policy, forwardZoneID, req.TTL)
+	zone, err := queries.UpdateZone(ctx, r.db, id, req.Name, policy, forwardZoneID, req.TTL)
 	if err != nil {
 		return models.ZoneData{}, err
 	}
@@ -139,8 +143,8 @@ func (r *repository) updateZone(ctx *gofr.Context, id string, req zoneRequest) (
 	return zone, nil
 }
 
-func (r *repository) deleteZone(ctx *gofr.Context, id string) (any, error) {
-	if err := queries.DeleteZone(ctx, id); err != nil {
+func (r *repository) deleteZone(ctx context.Context, id string) (any, error) {
+	if err := queries.DeleteZone(ctx, r.db, id); err != nil {
 		return nil, err
 	}
 
@@ -149,16 +153,16 @@ func (r *repository) deleteZone(ctx *gofr.Context, id string) (any, error) {
 	return fmt.Sprintf("zone successfully deleted with id: %s", id), nil
 }
 
-func (r *repository) getForwardZones(ctx *gofr.Context, limit, offset uint32) ([]models.ForwardZone, error) {
-	return queries.GetForwardZones(ctx, limit, offset)
+func (r *repository) getForwardZones(ctx context.Context, limit, offset uint32) ([]models.ForwardZone, error) {
+	return queries.GetForwardZones(ctx, r.db, limit, offset)
 }
 
-func (r *repository) getForwardZone(ctx *gofr.Context, id string) (models.ForwardZone, error) {
-	return queries.GetForwardZone(ctx, id)
+func (r *repository) getForwardZone(ctx context.Context, id string) (models.ForwardZone, error) {
+	return queries.GetForwardZone(ctx, r.db, id)
 }
 
-func (r *repository) createForwardZone(ctx *gofr.Context, req forwardZoneRequest) (models.ForwardZone, error) {
-	zone, err := queries.CreateForwardZone(ctx, req.Name, req.Addresses)
+func (r *repository) createForwardZone(ctx context.Context, req forwardZoneRequest) (models.ForwardZone, error) {
+	zone, err := queries.CreateForwardZone(ctx, r.db, req.Name, req.Addresses)
 	if err != nil {
 		return models.ForwardZone{}, err
 	}
@@ -167,8 +171,8 @@ func (r *repository) createForwardZone(ctx *gofr.Context, req forwardZoneRequest
 	return zone, nil
 }
 
-func (r *repository) updateForwardZone(ctx *gofr.Context, id string, req forwardZoneRequest) (models.ForwardZone, error) {
-	zone, err := queries.UpdateForwardZone(ctx, id, req.Name, req.Addresses)
+func (r *repository) updateForwardZone(ctx context.Context, id string, req forwardZoneRequest) (models.ForwardZone, error) {
+	zone, err := queries.UpdateForwardZone(ctx, r.db, id, req.Name, req.Addresses)
 	if err != nil {
 		return models.ForwardZone{}, err
 	}
@@ -177,11 +181,11 @@ func (r *repository) updateForwardZone(ctx *gofr.Context, id string, req forward
 	return zone, nil
 }
 
-func (r *repository) deleteForwardZone(ctx *gofr.Context, id string) (any, error) {
-	if err := queries.DetachForwardZoneFromZones(ctx, id); err != nil {
+func (r *repository) deleteForwardZone(ctx context.Context, id string) (any, error) {
+	if err := queries.DetachForwardZoneFromZones(ctx, r.db, id); err != nil {
 		return nil, err
 	}
-	if err := queries.DeleteForwardZone(ctx, id); err != nil {
+	if err := queries.DeleteForwardZone(ctx, r.db, id); err != nil {
 		return nil, err
 	}
 
@@ -190,27 +194,16 @@ func (r *repository) deleteForwardZone(ctx *gofr.Context, id string) (any, error
 	return fmt.Sprintf("forward zone successfully deleted with id: %s", id), nil
 }
 
-func (r *repository) getRecords(ctx *gofr.Context, zoneID string, limit, offset uint32) ([]models.DNSRecord, error) {
-	return queries.GetRecords(ctx, zoneID, limit, offset)
+func (r *repository) getRecords(ctx context.Context, zoneID string, limit, offset uint32) ([]models.DNSRecord, error) {
+	return queries.GetRecords(ctx, r.db, zoneID, limit, offset)
 }
 
-func (r *repository) getRecord(ctx *gofr.Context, zoneID, id string) (models.DNSRecord, error) {
-	return queries.GetRecord(ctx, zoneID, id)
+func (r *repository) getRecord(ctx context.Context, zoneID, id string) (models.DNSRecord, error) {
+	return queries.GetRecord(ctx, r.db, zoneID, id)
 }
 
-func (r *repository) createRecord(ctx *gofr.Context, zoneID string, req recordRequest) (models.DNSRecord, error) {
-	zone, err := queries.CreateRecord(ctx, zoneID, req.Name, req.Type, req.Value, req.TTL, req.Priority)
-	if err != nil {
-		return models.DNSRecord{}, err
-	}
-
-	r.invalidateZonesCache(ctx)
-	r.invalidateDNSCache(ctx)
-	return zone, nil
-}
-
-func (r *repository) updateRecord(ctx *gofr.Context, zoneID, id string, req recordRequest) (models.DNSRecord, error) {
-	record, err := queries.UpdateRecord(ctx, zoneID, id, req.Name, req.Type, req.Value, req.TTL, req.Priority)
+func (r *repository) createRecord(ctx context.Context, zoneID string, req recordRequest) (models.DNSRecord, error) {
+	record, err := queries.CreateRecord(ctx, r.db, zoneID, req.Name, req.Type, req.Value, req.TTL, req.Priority)
 	if err != nil {
 		return models.DNSRecord{}, err
 	}
@@ -220,8 +213,19 @@ func (r *repository) updateRecord(ctx *gofr.Context, zoneID, id string, req reco
 	return record, nil
 }
 
-func (r *repository) deleteRecord(ctx *gofr.Context, zoneID, id string) (any, error) {
-	if err := queries.DeleteRecord(ctx, zoneID, id); err != nil {
+func (r *repository) updateRecord(ctx context.Context, zoneID, id string, req recordRequest) (models.DNSRecord, error) {
+	record, err := queries.UpdateRecord(ctx, r.db, zoneID, id, req.Name, req.Type, req.Value, req.TTL, req.Priority)
+	if err != nil {
+		return models.DNSRecord{}, err
+	}
+
+	r.invalidateZonesCache(ctx)
+	r.invalidateDNSCache(ctx)
+	return record, nil
+}
+
+func (r *repository) deleteRecord(ctx context.Context, zoneID, id string) (any, error) {
+	if err := queries.DeleteRecord(ctx, r.db, zoneID, id); err != nil {
 		return nil, err
 	}
 
@@ -230,12 +234,12 @@ func (r *repository) deleteRecord(ctx *gofr.Context, zoneID, id string) (any, er
 	return fmt.Sprintf("record successfully deleted with id: %s", id), nil
 }
 
-func (r *repository) getSettings(ctx *gofr.Context) (models.Settings, error) {
-	return queries.GetSettings(ctx)
+func (r *repository) getSettings(ctx context.Context) (models.Settings, error) {
+	return queries.GetSettings(ctx, r.db)
 }
 
-func (r *repository) updateSettings(ctx *gofr.Context, req settingsRequest) (models.Settings, error) {
-	settings, err := queries.UpdateSettings(ctx, req.DefaultForwardZoneID)
+func (r *repository) updateSettings(ctx context.Context, req settingsRequest) (models.Settings, error) {
+	settings, err := queries.UpdateSettings(ctx, r.db, req.DefaultForwardZoneID)
 	if err != nil {
 		return models.Settings{}, err
 	}
@@ -292,3 +296,4 @@ func normalizeForwardPolicyForUpdate(current models.ZoneData, policy, forwardZon
 
 	return normalizeForwardPolicyForCreate(policy, forwardZoneID)
 }
+

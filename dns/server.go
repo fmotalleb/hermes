@@ -1,20 +1,21 @@
 package dns
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/miekg/dns"
 	"go.opentelemetry.io/otel"
-	"gofr.dev/pkg/gofr"
-
 	"github.com/fmotalleb/hermes/cache"
-
+	"github.com/fmotalleb/hermes/internal/pubsub"
+	"github.com/fmotalleb/hermes/internal/runtime"
 	"golang.org/x/sync/errgroup"
 )
 
-func Serve(ctx *gofr.Context, app *gofr.App, opts ...ServerOption) error {
+func Serve(ctx context.Context, app *runtime.App, opts ...ServerOption) error {
 	cfg := defaultServerConfig()
 	for _, opt := range opts {
 		if err := opt(cfg); err != nil {
@@ -22,68 +23,62 @@ func Serve(ctx *gofr.Context, app *gofr.App, opts ...ServerOption) error {
 		}
 	}
 
-	db := app.GetSQL()
-	logger := app.Logger()
-	store := &store{db: db, logger: logger}
+	store := &store{db: app.DB, logger: app.Logger}
 	tr := otel.GetTracerProvider().Tracer("dns-server")
 
 	var c cache.Cache
-	switch app.Config.GetOrDefault("DNS_CACHE_BACKEND", dnsDefaultCacheBackend) {
+	switch strings.ToLower(app.Config.CacheBackend) {
 	case "redis":
-		c = cache.NewRedisCache(ctx.Redis, dnsResponseCacheRedisKeyNamespace)
+		c = cache.NewRedisCache(app.Redis, dnsResponseCacheRedisKeyNamespace)
 	case "memory":
-		c = cache.NewMemoryCache(ctx, app.Metrics())
+		c = cache.NewMemoryCache(ctx)
 	case "none":
 		c = cache.NewNoneCache()
 	default:
-		return fmt.Errorf("%w: %s", dnsCacheInvalidBackend, app.Config.Get("DNS_CACHE_BACKEND"))
+		return fmt.Errorf("%w: %s", dnsCacheInvalidBackend, app.Config.CacheBackend)
 	}
 
 	h := &handler{
 		store:  store,
-		logger: logger,
+		logger: app.Logger,
 		tracer: tr,
 		cache:  c,
 	}
 
-	app.Subscribe(DNSCacheInvalidTopic, func(c *gofr.Context) error {
-		return h.cache.Clear(c)
-	})
+	bus := pubsub.New(app.Redis)
+	go func() {
+		_ = bus.Subscribe(ctx, DNSCacheInvalidTopic, func(_ context.Context, _ []byte) error {
+			return h.cache.Clear(ctx)
+		})
+	}()
 
 	group, groupCtx := errgroup.WithContext(ctx)
 
 	switch cfg.protocol {
 	case ProtocolUDP:
 		serveUDP(group, groupCtx, cfg, h)
-
 	case ProtocolTCP:
 		serveTCP(group, groupCtx, cfg, h)
-
 	case ProtocolBoth:
 		serveUDP(group, groupCtx, cfg, h)
 		serveTCP(group, groupCtx, cfg, h)
-
 	case ProtocolTLS:
 		if cfg.tlsConfig == nil {
 			return fmt.Errorf("ProtocolTLS requires TLS configuration (use WithTLSFiles or WithTLSConfig)")
 		}
 		serveTLS(group, groupCtx, cfg, h)
-
 	case ProtocolHTTPS:
 		if cfg.tlsConfig == nil {
 			return fmt.Errorf("ProtocolHTTPS requires TLS configuration (use WithTLSFiles or WithTLSConfig)")
 		}
 		serveDoH(group, groupCtx, cfg, h)
-
 	default:
 		return fmt.Errorf("unknown protocol: %d", cfg.protocol)
 	}
 
-	logger.Infof("dns server started at %s (protocol=%d)", cfg.listenAddr, cfg.protocol)
+	app.Logger.Info("dns server started", "addr", cfg.listenAddr, "protocol", cfg.protocol)
 	return group.Wait()
 }
-
-// --- helpers that register goroutines into the errgroup ---
 
 func serveUDP(g *errgroup.Group, ctx interface{ Done() <-chan struct{} }, cfg *ServerConfig, h dns.Handler) {
 	srv := &dns.Server{Addr: cfg.listenAddr, Net: "udp", Handler: h}
@@ -108,7 +103,6 @@ func serveTLS(g *errgroup.Group, ctx interface{ Done() <-chan struct{} }, cfg *S
 	g.Go(listenAndServe(srv))
 }
 
-// shutdownOn shuts down a dns.Server when the errgroup context is cancelled.
 func shutdownOn(ctx interface{ Done() <-chan struct{} }, srv *dns.Server) func() error {
 	return func() error {
 		<-ctx.Done()
@@ -117,7 +111,6 @@ func shutdownOn(ctx interface{ Done() <-chan struct{} }, srv *dns.Server) func()
 	}
 }
 
-// listenAndServe starts a dns.Server and maps net.ErrClosed to nil (clean shutdown).
 func listenAndServe(srv *dns.Server) func() error {
 	return func() error {
 		if err := srv.ListenAndServe(); !errors.Is(err, net.ErrClosed) {
@@ -126,3 +119,4 @@ func listenAndServe(srv *dns.Server) func() error {
 		return nil
 	}
 }
+

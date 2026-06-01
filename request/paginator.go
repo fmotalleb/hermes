@@ -3,8 +3,6 @@ package request
 import (
 	"errors"
 
-	"gofr.dev/pkg/gofr"
-
 	"github.com/fmotalleb/hermes/convert"
 )
 
@@ -21,9 +19,13 @@ type Paginator struct {
 	Limit  uint32
 }
 
-func PaginatorOf(ctx *gofr.Context) Paginator {
-	offsetStr := ctx.Param("offset")
-	limitStr := ctx.Param("limit")
+type queryParamer interface {
+	QueryParam(string) string
+}
+
+func PaginatorOf(ctx queryParamer) Paginator {
+	offsetStr := ctx.QueryParam("offset")
+	limitStr := ctx.QueryParam("limit")
 	offset := convert.Uint32Or(offsetStr, defaultOffset)
 	limit := convert.Uint32Or(limitStr, defaultLimit)
 	if limit > maximumLimit {

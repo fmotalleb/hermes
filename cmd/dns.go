@@ -1,42 +1,36 @@
-/*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
-*/
 package cmd
 
 import (
+	"context"
+	"os/signal"
+	"syscall"
+
 	"github.com/spf13/cobra"
-	"gofr.dev/pkg/gofr"
 
 	"github.com/fmotalleb/hermes/dns"
+	"github.com/fmotalleb/hermes/internal/runtime"
 )
 
-// dnsCmd represents the dns command
 var dnsCmd = &cobra.Command{
 	Use:   "dns",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
+	Short: "Run the DNS server",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		app().SubCommand("dns", func(c *gofr.Context) (any, error) {
-			return nil, dns.Serve(c, app(), dns.WithProtocol(dns.ProtocolUDP))
-		})
+		app, err := runtime.New(ctx, logger())
+		if err != nil {
+			return err
+		}
+		defer app.Close(context.Background())
+
+		return dns.Serve(ctx, app,
+			dns.WithListenAddr(app.Config.DNSListenAddr),
+			dns.WithProtocol(dns.ProtocolUDP),
+		)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(dnsCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// dnsCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// dnsCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }

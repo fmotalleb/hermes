@@ -5,16 +5,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-
-	"gofr.dev/pkg/gofr/container"
-	"gofr.dev/pkg/gofr/logging"
+	"log/slog"
 
 	"github.com/fmotalleb/hermes/models"
 )
 
 type store struct {
-	db     container.DB
-	logger logging.Logger
+	db     *sql.DB
+	logger *slog.Logger
 }
 
 type zoneRow struct {
@@ -103,7 +101,7 @@ WHERE id = $1;`
 	); err != nil {
 		return forwardZoneRow{}, err
 	}
-	
+
 	if len(addresses) > 0 {
 		if err := json.Unmarshal(addresses, &zone.Addresses); err != nil {
 			return forwardZoneRow{}, err
@@ -147,3 +145,4 @@ WHERE zone_id = $1;`
 func isNoRows(err error) bool {
 	return errors.Is(err, sql.ErrNoRows)
 }
+

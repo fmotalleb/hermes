@@ -8,20 +8,18 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gofr.dev/pkg/gofr"
-	gofrHTTP "gofr.dev/pkg/gofr/http"
-	"gofr.dev/pkg/gofr/http/response"
+	"github.com/fmotalleb/hermes/internal/web"
 )
 
 //go:embed *
 var embeddedStatic embed.FS
 
-func Register(app *gofr.App) {
-	app.GET("/", staticHandler)
-	app.GET("/{path:.*}", staticHandler)
+func Register(router interface{ GET(string, web.HandlerFunc) }) {
+	router.GET("/", staticHandler)
+	router.GET("/{path...}", staticHandler)
 }
 
-func staticHandler(ctx *gofr.Context) (any, error) {
+func staticHandler(ctx *web.Context) (any, error) {
 	requestPath := ctx.PathParam("path")
 	requestPath = strings.TrimPrefix(path.Clean("/"+requestPath), "/")
 	if requestPath == "." {
@@ -33,28 +31,40 @@ func staticHandler(ctx *gofr.Context) (any, error) {
 	}
 
 	if requestPath == "api" || strings.HasPrefix(requestPath, "api/") {
-		return response.File{}, gofrHTTP.ErrorEntityNotFound{Name: "file", Value: requestPath}
+		return web.File{}, notFound("file", requestPath)
 	}
 
 	if filepath.Ext(requestPath) == "" {
 		return readEmbeddedFile("index.html")
 	}
 
-	filePath := requestPath
-	return readEmbeddedFile(filePath)
+	return readEmbeddedFile(requestPath)
 }
 
 func readEmbeddedFile(filePath string) (any, error) {
 	data, err := embeddedStatic.ReadFile(filePath)
 	if err != nil {
-		return response.File{}, gofrHTTP.ErrorEntityNotFound{Name: "file", Value: strings.TrimPrefix(filePath, "")}
+		return web.File{}, notFound("file", strings.TrimPrefix(filePath, ""))
 	}
 
-	return response.File{
+	return web.File{
 		Content:     data,
 		ContentType: contentTypeForFile(filePath, data),
 	}, nil
 }
+
+func notFound(name, value string) error {
+	return &notFoundError{name: name, value: value}
+}
+
+type notFoundError struct {
+	name  string
+	value string
+}
+
+func (e *notFoundError) Error() string { return e.name + " not found: " + e.value }
+func (e *notFoundError) StatusCode() int { return http.StatusNotFound }
+func (e *notFoundError) Body() any { return map[string]string{"name": e.name, "value": e.value} }
 
 func contentTypeForFile(filePath string, data []byte) string {
 	switch ext := strings.ToLower(filepath.Ext(filePath)); ext {
@@ -94,3 +104,4 @@ func httpDetectContentType(data []byte) string {
 func fsContentType(data []byte) string {
 	return http.DetectContentType(data)
 }
+

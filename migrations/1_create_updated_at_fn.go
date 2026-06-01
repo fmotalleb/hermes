@@ -1,7 +1,7 @@
 package migrations
 
 import (
-	"gofr.dev/pkg/gofr/migration"
+	"context"
 )
 
 const createSetUpdatedAtFunction = `
@@ -15,13 +15,13 @@ $BODY$
   LANGUAGE plpgsql VOLATILE
   COST 100`
 
-func createUpdatedAtFn() migration.Migrate {
-	return migration.Migrate{
-		UP: func(d migration.Datasource) error {
-			if _, err := d.SQL.Exec(createSetUpdatedAtFunction); err != nil {
-				return err
-			}
-			return nil
+func createUpdatedAtFn() Migration {
+	return Migration{
+		Version: 1,
+		Name:    "create_updated_at_fn",
+		Up: func(ctx context.Context, db DBTX) error {
+			_, err := db.ExecContext(ctx, createSetUpdatedAtFunction)
+			return err
 		},
 	}
 }

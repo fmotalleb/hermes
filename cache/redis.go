@@ -5,15 +5,15 @@ import (
 	"errors"
 	"time"
 
-	"gofr.dev/pkg/gofr/container"
+	"github.com/redis/go-redis/v9"
 )
 
 type redisCache struct {
-	db      container.Redis
+	db      *redis.Client
 	baseKey string
 }
 
-func NewRedisCache(db container.Redis, baseKey string) Cache {
+func NewRedisCache(db *redis.Client, baseKey string) Cache {
 	return &redisCache{
 		db:      db,
 		baseKey: baseKey,

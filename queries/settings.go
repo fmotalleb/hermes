@@ -1,9 +1,8 @@
 package queries
 
 import (
+	"context"
 	"database/sql"
-
-	"gofr.dev/pkg/gofr"
 
 	"github.com/fmotalleb/hermes/models"
 )
@@ -39,18 +38,18 @@ func scanSettings(row scanner) (models.Settings, error) {
 	return settings, nil
 }
 
-func GetSettings(ctx *gofr.Context) (models.Settings, error) {
-	row := ctx.SQL.QueryRowContext(ctx, getSettingsQuery)
+func GetSettings(ctx context.Context, db DB) (models.Settings, error) {
+	row := db.QueryRowContext(ctx, getSettingsQuery)
 	return scanSettings(row)
 }
 
-func UpdateSettings(ctx *gofr.Context, defaultForwardZoneID *string) (models.Settings, error) {
-	row := ctx.SQL.QueryRowContext(ctx, upsertSettingsQuery, defaultForwardZoneID)
+func UpdateSettings(ctx context.Context, db DB, defaultForwardZoneID *string) (models.Settings, error) {
+	row := db.QueryRowContext(ctx, upsertSettingsQuery, defaultForwardZoneID)
 	return scanSettings(row)
 }
 
-func ensureSettingsRow(ctx *gofr.Context) error {
-	_, err := ctx.SQL.ExecContext(ctx, `INSERT INTO settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;`)
+func ensureSettingsRow(ctx context.Context, db DB) error {
+	_, err := db.ExecContext(ctx, `INSERT INTO settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;`)
 	return err
 }
 

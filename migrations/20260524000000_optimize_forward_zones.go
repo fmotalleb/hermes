@@ -1,13 +1,13 @@
 package migrations
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
 	"strings"
 
 	"github.com/lib/pq"
-	"gofr.dev/pkg/gofr/migration"
 )
 
 type forwardAddress struct {
@@ -18,17 +18,19 @@ type forwardAddress struct {
 	DOHPath       string `json:"doh_path,omitempty"`
 }
 
-func optimizeForwardZones() migration.Migrate {
-	return migration.Migrate{
-		UP: func(d migration.Datasource) error {
+func optimizeForwardZones() Migration {
+	return Migration{
+		Version: 20260524000000,
+		Name:    "optimize_forward_zones",
+		Up: func(ctx context.Context, db DBTX) error {
 			// 1. Add addresses_jsonb column
-			_, err := d.SQL.Exec("ALTER TABLE forward_zones ADD COLUMN addresses_jsonb JSONB DEFAULT '[]'::jsonb;")
+			_, err := db.ExecContext(ctx, "ALTER TABLE forward_zones ADD COLUMN addresses_jsonb JSONB DEFAULT '[]'::jsonb;")
 			if err != nil {
 				return err
 			}
 
 			// 2. Migrate data
-			rows, err := d.SQL.Query("SELECT id, addresses FROM forward_zones;")
+			rows, err := db.QueryContext(ctx, "SELECT id, addresses FROM forward_zones;")
 			if err != nil {
 				return err
 			}
@@ -51,19 +53,19 @@ func optimizeForwardZones() migration.Migrate {
 					return err
 				}
 
-				_, err = d.SQL.Exec("UPDATE forward_zones SET addresses_jsonb = $1 WHERE id = $2;", buf, id)
+				_, err = db.ExecContext(ctx, "UPDATE forward_zones SET addresses_jsonb = $1 WHERE id = $2;", buf, id)
 				if err != nil {
 					return err
 				}
 			}
 
 			// 3. Drop old addresses and rename
-			_, err = d.SQL.Exec("ALTER TABLE forward_zones DROP COLUMN addresses;")
+			_, err = db.ExecContext(ctx, "ALTER TABLE forward_zones DROP COLUMN addresses;")
 			if err != nil {
 				return err
 			}
 
-			_, err = d.SQL.Exec("ALTER TABLE forward_zones RENAME COLUMN addresses_jsonb TO addresses;")
+			_, err = db.ExecContext(ctx, "ALTER TABLE forward_zones RENAME COLUMN addresses_jsonb TO addresses;")
 			if err != nil {
 				return err
 			}

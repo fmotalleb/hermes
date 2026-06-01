@@ -1,12 +1,14 @@
 package migrations
 
 import (
-	"gofr.dev/pkg/gofr/migration"
+	"context"
 )
 
-func settings() migration.Migrate {
-	return migration.Migrate{
-		UP: func(d migration.Datasource) error {
+func settings() Migration {
+	return Migration{
+		Version: 20260523212658,
+		Name:    "settings",
+		Up: func(ctx context.Context, db DBTX) error {
 			const createSettingsTable = `
 CREATE TABLE IF NOT EXISTS settings (
 	id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
@@ -36,14 +38,10 @@ BEFORE UPDATE ON settings
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();`
 
-			if _, err := d.SQL.Exec(createSettingsTable); err != nil {
-				return err
-			}
-			if _, err := d.SQL.Exec(addZoneForwardPolicy); err != nil {
-				return err
-			}
-			if _, err := d.SQL.Exec(createSettingsTrigger); err != nil {
-				return err
+			for _, stmt := range []string{createSettingsTable, addZoneForwardPolicy, createSettingsTrigger} {
+				if _, err := db.ExecContext(ctx, stmt); err != nil {
+					return err
+				}
 			}
 
 			return nil

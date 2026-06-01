@@ -1,0 +1,10 @@
+info:
+  name: migrations
+  type: folder
+  seq: 8
+
+request:
+  auth: inherit
+  variables:
+    - name: base_url_migrations
+      value: "{{base_url}}/migrations"

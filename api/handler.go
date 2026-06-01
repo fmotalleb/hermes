@@ -3,37 +3,40 @@ package api
 import (
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"database/sql"
 
-	"gofr.dev/pkg/gofr"
-	"gofr.dev/pkg/gofr/http"
-
-	"github.com/fmotalleb/hermes/models"
+	"github.com/fmotalleb/hermes/internal/pubsub"
+	"github.com/fmotalleb/hermes/internal/web"
 	"github.com/fmotalleb/hermes/request"
 )
 
 type handler struct {
-	repo *repository
+	repo      *repository
+	migrator  Migrator
+	metricsHandler http.Handler
+	pubsub    *pubsub.Bus
 }
 
-func newHandler(r *repository) *handler {
+func newHandler(r *repository, migrator Migrator, metrics http.Handler, bus *pubsub.Bus) *handler {
 	return &handler{
-		repo: r,
+		repo:           r,
+		migrator:       migrator,
+		metricsHandler: metrics,
+		pubsub:         bus,
 	}
 }
 
-func notFoundEntity(ctx *gofr.Context, logMessage, entityName, value string, err error) (any, error) {
-	ctx.Errorf("%s: %v", logMessage, err)
-	return nil, http.ErrorEntityNotFound{
-		Name:  entityName,
-		Value: value,
-	}
+func notFoundEntity(ctx *web.Context, logMessage, entityName, value string, err error) (any, error) {
+	_ = logMessage
+	return nil, entityNotFoundError{Name: entityName, Value: value}
 }
 
-func (h *handler) getZones(ctx *gofr.Context) (any, error) {
+func (h *handler) getZones(ctx *web.Context) (any, error) {
 	p := request.PaginatorOf(ctx)
-	var err error
-	var zones []models.ZoneData
-	if zones, err = h.repo.getZones(ctx, p.Limit, p.Offset); err != nil {
+	zones, err := h.repo.getZones(ctx, p.Limit, p.Offset)
+	if err != nil {
 		return nil, err
 	}
 	return map[string]any{
@@ -43,16 +46,16 @@ func (h *handler) getZones(ctx *gofr.Context) (any, error) {
 	}, nil
 }
 
-func (h *handler) getZone(ctx *gofr.Context) (any, error) {
+func (h *handler) getZone(ctx *web.Context) (any, error) {
 	zone := ctx.PathParam("zone")
-	if r, err := h.repo.getZone(ctx, zone); err != nil {
+	r, err := h.repo.getZone(ctx, zone)
+	if err != nil {
 		return notFoundEntity(ctx, "failed to get zone", "zone_id", zone, err)
-	} else {
-		return r, nil
 	}
+	return r, nil
 }
 
-func (h *handler) createZone(ctx *gofr.Context) (any, error) {
+func (h *handler) createZone(ctx *web.Context) (any, error) {
 	var req zoneRequest
 	if err := ctx.Bind(&req); err != nil {
 		return nil, err
@@ -70,7 +73,7 @@ func (h *handler) createZone(ctx *gofr.Context) (any, error) {
 	return zone, nil
 }
 
-func (h *handler) updateZone(ctx *gofr.Context) (any, error) {
+func (h *handler) updateZone(ctx *web.Context) (any, error) {
 	var req zoneRequest
 	if err := ctx.Bind(&req); err != nil {
 		return nil, err
@@ -82,17 +85,25 @@ func (h *handler) updateZone(ctx *gofr.Context) (any, error) {
 
 	zone, err := h.repo.updateZone(ctx, ctx.PathParam("zone"), req)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return notFoundEntity(ctx, "failed to update zone", "zone_id", ctx.PathParam("zone"), err)
+		}
 		return nil, normalizeCreateError(err)
 	}
 
 	return zone, nil
 }
 
-func (h *handler) deleteZone(ctx *gofr.Context) (any, error) {
-	return h.repo.deleteZone(ctx, ctx.PathParam("zone"))
+func (h *handler) deleteZone(ctx *web.Context) (any, error) {
+	zoneID := ctx.PathParam("zone")
+	value, err := h.repo.deleteZone(ctx, zoneID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return notFoundEntity(ctx, "failed to delete zone", "zone_id", zoneID, err)
+	}
+	return value, err
 }
 
-func (h *handler) getForwardZones(ctx *gofr.Context) (any, error) {
+func (h *handler) getForwardZones(ctx *web.Context) (any, error) {
 	p := request.PaginatorOf(ctx)
 
 	zones, err := h.repo.getForwardZones(ctx, p.Limit, p.Offset)
@@ -107,16 +118,16 @@ func (h *handler) getForwardZones(ctx *gofr.Context) (any, error) {
 	}, nil
 }
 
-func (h *handler) getForwardZone(ctx *gofr.Context) (any, error) {
+func (h *handler) getForwardZone(ctx *web.Context) (any, error) {
 	id := ctx.PathParam("id")
-	if r, err := h.repo.getForwardZone(ctx, id); err != nil {
+	r, err := h.repo.getForwardZone(ctx, id)
+	if err != nil {
 		return notFoundEntity(ctx, "failed to get forward zone", "forward_zone_id", id, err)
-	} else {
-		return r, nil
 	}
+	return r, nil
 }
 
-func (h *handler) createForwardZone(ctx *gofr.Context) (any, error) {
+func (h *handler) createForwardZone(ctx *web.Context) (any, error) {
 	var req forwardZoneRequest
 	if err := ctx.Bind(&req); err != nil {
 		return nil, err
@@ -137,7 +148,7 @@ func (h *handler) createForwardZone(ctx *gofr.Context) (any, error) {
 	return zone, nil
 }
 
-func (h *handler) updateForwardZone(ctx *gofr.Context) (any, error) {
+func (h *handler) updateForwardZone(ctx *web.Context) (any, error) {
 	var req forwardZoneRequest
 	if err := ctx.Bind(&req); err != nil {
 		return nil, err
@@ -152,17 +163,25 @@ func (h *handler) updateForwardZone(ctx *gofr.Context) (any, error) {
 
 	zone, err := h.repo.updateForwardZone(ctx, ctx.PathParam("id"), req)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return notFoundEntity(ctx, "failed to update forward zone", "forward_zone_id", ctx.PathParam("id"), err)
+		}
 		return nil, normalizeCreateError(err)
 	}
 
 	return zone, nil
 }
 
-func (h *handler) deleteForwardZone(ctx *gofr.Context) (any, error) {
-	return h.repo.deleteForwardZone(ctx, ctx.PathParam("id"))
+func (h *handler) deleteForwardZone(ctx *web.Context) (any, error) {
+	id := ctx.PathParam("id")
+	value, err := h.repo.deleteForwardZone(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return notFoundEntity(ctx, "failed to delete forward zone", "forward_zone_id", id, err)
+	}
+	return value, err
 }
 
-func (h *handler) getZoneRecords(ctx *gofr.Context) (any, error) {
+func (h *handler) getZoneRecords(ctx *web.Context) (any, error) {
 	p := request.PaginatorOf(ctx)
 
 	records, err := h.repo.getRecords(ctx, ctx.PathParam("zone"), p.Limit, p.Offset)
@@ -177,17 +196,17 @@ func (h *handler) getZoneRecords(ctx *gofr.Context) (any, error) {
 	}, nil
 }
 
-func (h *handler) getRecord(ctx *gofr.Context) (any, error) {
+func (h *handler) getRecord(ctx *web.Context) (any, error) {
 	zoneID := ctx.PathParam("zone")
 	id := ctx.PathParam("id")
-	if r, err := h.repo.getRecord(ctx, zoneID, id); err != nil {
+	r, err := h.repo.getRecord(ctx, zoneID, id)
+	if err != nil {
 		return notFoundEntity(ctx, "failed to get record", "record_id", id, err)
-	} else {
-		return r, nil
 	}
+	return r, nil
 }
 
-func (h *handler) createRecord(ctx *gofr.Context) (any, error) {
+func (h *handler) createRecord(ctx *web.Context) (any, error) {
 	var req recordRequest
 	if err := ctx.Bind(&req); err != nil {
 		return nil, err
@@ -212,7 +231,7 @@ func (h *handler) createRecord(ctx *gofr.Context) (any, error) {
 	return record, nil
 }
 
-func (h *handler) updateRecord(ctx *gofr.Context) (any, error) {
+func (h *handler) updateRecord(ctx *web.Context) (any, error) {
 	var req recordRequest
 	if err := ctx.Bind(&req); err != nil {
 		return nil, err
@@ -231,21 +250,29 @@ func (h *handler) updateRecord(ctx *gofr.Context) (any, error) {
 
 	record, err := h.repo.updateRecord(ctx, ctx.PathParam("zone"), ctx.PathParam("id"), req)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return notFoundEntity(ctx, "failed to update record", "record_id", ctx.PathParam("id"), err)
+		}
 		return nil, normalizeCreateError(err)
 	}
 
 	return record, nil
 }
 
-func (h *handler) deleteRecord(ctx *gofr.Context) (any, error) {
-	return h.repo.deleteRecord(ctx, ctx.PathParam("zone"), ctx.PathParam("id"))
+func (h *handler) deleteRecord(ctx *web.Context) (any, error) {
+	id := ctx.PathParam("id")
+	value, err := h.repo.deleteRecord(ctx, ctx.PathParam("zone"), id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return notFoundEntity(ctx, "failed to delete record", "record_id", id, err)
+	}
+	return value, err
 }
 
-func (h *handler) getSettings(ctx *gofr.Context) (any, error) {
+func (h *handler) getSettings(ctx *web.Context) (any, error) {
 	return h.repo.getSettings(ctx)
 }
 
-func (h *handler) updateSettings(ctx *gofr.Context) (any, error) {
+func (h *handler) updateSettings(ctx *web.Context) (any, error) {
 	var req settingsRequest
 	if err := ctx.Bind(&req); err != nil {
 		return nil, err
@@ -257,4 +284,45 @@ func (h *handler) updateSettings(ctx *gofr.Context) (any, error) {
 	}
 
 	return settings, nil
+}
+
+func (h *handler) publishEvent(ctx *web.Context) (any, error) {
+	if h.pubsub == nil {
+		return nil, errors.New("pubsub not configured")
+	}
+
+	topic := ctx.PathParam("topic")
+	payload, err := io.ReadAll(ctx.Request.Body)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.pubsub.Publish(ctx, topic, payload); err != nil {
+		return nil, err
+	}
+
+	return map[string]any{
+		"topic":    topic,
+		"published": true,
+	}, nil
+}
+
+func (h *handler) runMigrations(ctx *web.Context) (any, error) {
+	if h.migrator == nil {
+		return nil, errors.New("migrator not configured")
+	}
+
+	if err := h.migrator.Run(ctx); err != nil {
+		return nil, err
+	}
+
+	return map[string]any{"ok": true}, nil
+}
+
+func (h *handler) metrics(ctx *web.Context) (any, error) {
+	if h.metricsHandler == nil {
+		return nil, errors.New("metrics handler not configured")
+	}
+
+	h.metricsHandler.ServeHTTP(ctx.ResponseWriter, ctx.Request)
+	return web.Responded{}, nil
 }

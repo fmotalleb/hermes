@@ -1,0 +1,12 @@
+info:
+  name: pubsub
+  type: folder
+  seq: 7
+
+request:
+  auth: inherit
+  variables:
+    - name: base_url_pubsub
+      value: "{{base_url}}/pubsub"
+    - name: topic
+      value: dns:cache:invalidate

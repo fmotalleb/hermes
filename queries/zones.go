@@ -1,9 +1,8 @@
 package queries
 
 import (
+	"context"
 	"database/sql"
-
-	"gofr.dev/pkg/gofr"
 
 	"github.com/fmotalleb/hermes/models"
 )
@@ -110,10 +109,10 @@ func scanZone(row scanner) (models.ZoneData, error) {
 	return zone, nil
 }
 
-func GetZones(ctx *gofr.Context, limit, offset uint32) ([]models.ZoneData, error) {
+func GetZones(ctx context.Context, db DB, limit, offset uint32) ([]models.ZoneData, error) {
 	var rows *sql.Rows
 	var err error
-	if rows, err = ctx.SQL.QueryContext(ctx, getZonesQuery, limit, offset); err != nil {
+	if rows, err = db.QueryContext(ctx, getZonesQuery, limit, offset); err != nil {
 		return nil, err
 	}
 	defer rows.Close()
@@ -142,13 +141,13 @@ func GetZones(ctx *gofr.Context, limit, offset uint32) ([]models.ZoneData, error
 	return zones, rows.Err()
 }
 
-func GetZone(ctx *gofr.Context, id string) (models.ZoneData, error) {
-	row := ctx.SQL.QueryRowContext(ctx, getZoneQuery, id)
+func GetZone(ctx context.Context, db DB, id string) (models.ZoneData, error) {
+	row := db.QueryRowContext(ctx, getZoneQuery, id)
 	return scanZone(row)
 }
 
-func CreateZone(ctx *gofr.Context, name, forwardPolicy string, forwardZoneID *string, ttl *uint32) (models.ZoneData, error) {
-	row := ctx.SQL.QueryRowContext(
+func CreateZone(ctx context.Context, db DB, name, forwardPolicy string, forwardZoneID *string, ttl *uint32) (models.ZoneData, error) {
+	row := db.QueryRowContext(
 		ctx,
 		createZoneQuery,
 		name,
@@ -159,8 +158,8 @@ func CreateZone(ctx *gofr.Context, name, forwardPolicy string, forwardZoneID *st
 	return scanZone(row)
 }
 
-func UpdateZone(ctx *gofr.Context, id, name, forwardPolicy string, forwardZoneID *string, ttl *uint32) (models.ZoneData, error) {
-	row := ctx.SQL.QueryRowContext(
+func UpdateZone(ctx context.Context, db DB, id, name, forwardPolicy string, forwardZoneID *string, ttl *uint32) (models.ZoneData, error) {
+	row := db.QueryRowContext(
 		ctx,
 		updateZoneQuery,
 		name,
@@ -169,12 +168,11 @@ func UpdateZone(ctx *gofr.Context, id, name, forwardPolicy string, forwardZoneID
 		ttl,
 		id,
 	)
-
 	return scanZone(row)
 }
 
-func DeleteZone(ctx *gofr.Context, id string) error {
-	result, err := ctx.SQL.ExecContext(ctx, deleteZoneQuery, id)
+func DeleteZone(ctx context.Context, db DB, id string) error {
+	result, err := db.ExecContext(ctx, deleteZoneQuery, id)
 	if err != nil {
 		return err
 	}

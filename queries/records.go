@@ -1,9 +1,8 @@
 package queries
 
 import (
+	"context"
 	"database/sql"
-
-	"gofr.dev/pkg/gofr"
 
 	"github.com/fmotalleb/hermes/models"
 )
@@ -93,8 +92,8 @@ func scanRecord(row scanner) (models.DNSRecord, error) {
 	return record, nil
 }
 
-func GetRecords(ctx *gofr.Context, zoneID string, limit, offset uint32) ([]models.DNSRecord, error) {
-	rows, err := ctx.SQL.QueryContext(ctx, getRecordsQuery, zoneID, limit, offset)
+func GetRecords(ctx context.Context, db DB, zoneID string, limit, offset uint32) ([]models.DNSRecord, error) {
+	rows, err := db.QueryContext(ctx, getRecordsQuery, zoneID, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -112,13 +111,13 @@ func GetRecords(ctx *gofr.Context, zoneID string, limit, offset uint32) ([]model
 	return records, rows.Err()
 }
 
-func GetRecord(ctx *gofr.Context, zoneID, id string) (models.DNSRecord, error) {
-	row := ctx.SQL.QueryRowContext(ctx, getRecordQuery, zoneID, id)
+func GetRecord(ctx context.Context, db DB, zoneID, id string) (models.DNSRecord, error) {
+	row := db.QueryRowContext(ctx, getRecordQuery, zoneID, id)
 	return scanRecord(row)
 }
 
-func CreateRecord(ctx *gofr.Context, zoneID, name string, typ models.DNSRecordType, value string, ttl, priority *uint32) (models.DNSRecord, error) {
-	row := ctx.SQL.QueryRowContext(
+func CreateRecord(ctx context.Context, db DB, zoneID, name string, typ models.DNSRecordType, value string, ttl, priority *uint32) (models.DNSRecord, error) {
+	row := db.QueryRowContext(
 		ctx,
 		createRecordQuery,
 		zoneID,
@@ -132,8 +131,8 @@ func CreateRecord(ctx *gofr.Context, zoneID, name string, typ models.DNSRecordTy
 	return scanRecord(row)
 }
 
-func UpdateRecord(ctx *gofr.Context, zoneID, id, name string, typ models.DNSRecordType, value string, ttl, priority *uint32) (models.DNSRecord, error) {
-	row := ctx.SQL.QueryRowContext(
+func UpdateRecord(ctx context.Context, db DB, zoneID, id, name string, typ models.DNSRecordType, value string, ttl, priority *uint32) (models.DNSRecord, error) {
+	row := db.QueryRowContext(
 		ctx,
 		updateRecordQuery,
 		name,
@@ -148,8 +147,8 @@ func UpdateRecord(ctx *gofr.Context, zoneID, id, name string, typ models.DNSReco
 	return scanRecord(row)
 }
 
-func DeleteRecord(ctx *gofr.Context, zoneID, id string) error {
-	result, err := ctx.SQL.ExecContext(ctx, deleteRecordQuery, zoneID, id)
+func DeleteRecord(ctx context.Context, db DB, zoneID, id string) error {
+	result, err := db.ExecContext(ctx, deleteRecordQuery, zoneID, id)
 	if err != nil {
 		return err
 	}
