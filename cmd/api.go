@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/fmotalleb/hermes/api"
 	"github.com/fmotalleb/hermes/auth"
@@ -44,19 +45,25 @@ var apiCmd = &cobra.Command{
 			app.DB,
 			cache.NewRedisCache(app.Redis, "hermes"),
 			bus,
-			migrations.NewRunner(app.DB),
+			migrations.NewRunner(app.DB, app.Logger),
 			app.MetricsHandler,
 		)
 		static.Register(router)
-
-		go func() {
-			_ = app.StartMetricsServer(ctx, app.MetricsHandler)
-		}()
-
-		return app.StartHTTPServer(ctx, otelhttp.NewHandler(router, "http"))
+		if err := execPreRun(ctx, app); err != nil {
+			return err
+		}
+		eg, ctx := errgroup.WithContext(ctx)
+		eg.Go(func() error {
+			return app.StartMetricsServer(ctx, app.MetricsHandler)
+		})
+		eg.Go(func() error {
+			return app.StartHTTPServer(ctx, otelhttp.NewHandler(router, "http"))
+		})
+		return eg.Wait()
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(apiCmd)
+	apiCmd.Flags().Bool("migrate", false, "Run migrations when starting api server")
 }

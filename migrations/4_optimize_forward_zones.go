@@ -20,7 +20,7 @@ type forwardAddress struct {
 
 func optimizeForwardZones() Migration {
 	return Migration{
-		Version: 20260524000000,
+		Version: 4,
 		Name:    "optimize_forward_zones",
 		Up: func(ctx context.Context, db DBTX) error {
 			// 1. Add addresses_jsonb column
@@ -98,17 +98,19 @@ func parseLegacyAddress(addr string) forwardAddress {
 	if err != nil {
 		host = target
 		portStr = "53"
-		if protocol == "tls" {
+		switch protocol {
+		case "tls":
 			portStr = "853"
-		} else if protocol == "https" {
+		case "https":
 			portStr = "443"
 		}
 	}
 
 	port := 53
-	if protocol == "tls" {
+	switch protocol {
+	case "tls":
 		port = 853
-	} else if protocol == "https" {
+	case "https":
 		port = 443
 	}
 

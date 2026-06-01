@@ -6,7 +6,7 @@ import (
 
 func settings() Migration {
 	return Migration{
-		Version: 20260523212658,
+		Version: 3,
 		Name:    "settings",
 		Up: func(ctx context.Context, db DBTX) error {
 			const createSettingsTable = `

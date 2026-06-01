@@ -19,6 +19,7 @@ var rootCmd = &cobra.Command{
 			return
 		}
 		logLevel = lvl
+		preRunFromArgs(cmd)
 	},
 }
 
@@ -43,4 +44,5 @@ func logger() *slog.Logger {
 
 func init() {
 	rootCmd.PersistentFlags().StringP("log-level", "l", "info", "set log level of the application")
+	registerPreRunFlags(rootCmd)
 }

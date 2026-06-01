@@ -4,9 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"sort"
 	"time"
 )
+
+func All() []Migration {
+	return []Migration{
+		createUpdatedAtFn(),
+		createDNSApiSchema(),
+		settings(),
+		optimizeForwardZones(),
+	}
+}
 
 type DBTX interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
@@ -21,18 +31,19 @@ type Migration struct {
 }
 
 type Runner struct {
-	db *sql.DB
+	db     *sql.DB
+	logger *slog.Logger
 }
 
-func NewRunner(db *sql.DB) *Runner {
-	return &Runner{db: db}
+func NewRunner(db *sql.DB, logger *slog.Logger) *Runner {
+	return &Runner{db: db, logger: logger}
 }
 
 func (r *Runner) Run(ctx context.Context) error {
-	return Apply(ctx, r.db, All()...)
+	return Apply(ctx, r.db, r.logger, All()...)
 }
 
-func Apply(ctx context.Context, db *sql.DB, migrations ...Migration) error {
+func Apply(ctx context.Context, db *sql.DB, logger *slog.Logger, migrations ...Migration) error {
 	if _, err := db.ExecContext(ctx, `
 CREATE TABLE IF NOT EXISTS schema_migrations (
   version BIGINT PRIMARY KEY,
@@ -73,13 +84,4 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 	}
 
 	return nil
-}
-
-func All() []Migration {
-	return []Migration{
-		createUpdatedAtFn(),
-		createDNSApiSchema(),
-		settings(),
-		optimizeForwardZones(),
-	}
 }

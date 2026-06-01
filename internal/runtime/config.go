@@ -9,48 +9,54 @@ import (
 )
 
 type Config struct {
-	HTTPPort        int
-	MetricsPort     int
-	AdminNoAuth     bool
-	AdminUser       string
-	AdminPass       string
-	DBDsn           string
-	DBMaxIdle       int
-	DBMaxOpen       int
-	RedisAddr       string
-	RedisDB         int
-	RedisPubSubDB   int
-	RedisPubSubMode string
-	TraceExporter   string
-	TracerURL       string
-	TracerRatio     float64
-	PubSubBackend   string
-	CacheBackend    string
-	DNSListenAddr   string
-	DNSProtocol     string
+	HTTPPort            int
+	MetricsPort         int
+	AdminNoAuth         bool
+	AdminUser           string
+	AdminPass           string
+	DBDsn               string
+	DBMaxIdle           int
+	DBMaxOpen           int
+	RedisAddr           string
+	RedisDB             int
+	RedisPubSubDB       int
+	RedisPubSubMode     string
+	PubSubBrokers       string
+	PubSubRabbitMQURI   string
+	PubSubConsumerGroup string
+	TraceExporter       string
+	TracerURL           string
+	TracerRatio         float64
+	PubSubBackend       string
+	CacheBackend        string
+	DNSListenAddr       string
+	DNSProtocol         string
 }
 
 func LoadConfig() Config {
 	return Config{
-		HTTPPort:        envInt("HTTP_PORT", 8000),
-		MetricsPort:     envInt("METRICS_PORT", 0),
-		AdminNoAuth:     envBool("ADMIN_NO_AUTH", false),
-		AdminUser:       envString("ADMIN_USER", "admin"),
-		AdminPass:       envString("ADMIN_PASS", "admin"),
-		DBDsn:           envString("DATABASE_URL", defaultPostgresDSN()),
-		DBMaxIdle:       envInt("DB_MAX_IDLE_CONNECTION", 5),
-		DBMaxOpen:       envInt("DB_MAX_OPEN_CONNECTION", 10),
-		RedisAddr:       net.JoinHostPort(envString("REDIS_HOST", "127.0.0.1"), strconv.Itoa(envInt("REDIS_PORT", 6379))),
-		RedisDB:         envInt("REDIS_DB", 0),
-		RedisPubSubDB:   envInt("REDIS_PUBSUB_DB", 1),
-		RedisPubSubMode: envString("REDIS_PUBSUB_MODE", "pubsub"),
-		TraceExporter:   envString("TRACE_EXPORTER", "otlp"),
-		TracerURL:       envString("TRACER_URL", "localhost:4317"),
-		TracerRatio:     envFloat("TRACER_RATIO", 1),
-		PubSubBackend:   envString("PUBSUB_BACKEND", "gochannel"),
-		CacheBackend:    envString("DNS_CACHE_BACKEND", "memory"),
-		DNSListenAddr:   envString("DNS_LISTEN_ADDR", ":53"),
-		DNSProtocol:     envString("DNS_PROTOCOL", "udp"),
+		HTTPPort:            envInt("HTTP_PORT", 8000),
+		MetricsPort:         envInt("METRICS_PORT", 0),
+		AdminNoAuth:         envBool("ADMIN_NO_AUTH", false),
+		AdminUser:           envString("ADMIN_USER", "admin"),
+		AdminPass:           envString("ADMIN_PASS", "admin"),
+		DBDsn:               envString("DATABASE_URL", defaultPostgresDSN()),
+		DBMaxIdle:           envInt("DB_MAX_IDLE_CONNECTION", 5),
+		DBMaxOpen:           envInt("DB_MAX_OPEN_CONNECTION", 10),
+		RedisAddr:           net.JoinHostPort(envString("REDIS_HOST", "127.0.0.1"), strconv.Itoa(envInt("REDIS_PORT", 6379))),
+		RedisDB:             envInt("REDIS_DB", 0),
+		RedisPubSubDB:       envInt("REDIS_PUBSUB_DB", 1),
+		RedisPubSubMode:     envString("REDIS_PUBSUB_MODE", "pubsub"),
+		PubSubBrokers:       envString("PUBSUB_BROKERS", ""),
+		PubSubRabbitMQURI:   envString("PUBSUB_RABBITMQ_URI", ""),
+		PubSubConsumerGroup: envString("PUBSUB_CONSUMER_GROUP", "hermes"),
+		TraceExporter:       envString("TRACE_EXPORTER", "otlp"),
+		TracerURL:           envString("TRACER_URL", "localhost:4317"),
+		TracerRatio:         envFloat("TRACER_RATIO", 1),
+		PubSubBackend:       envString("PUBSUB_BACKEND", "gochannel"),
+		CacheBackend:        envString("DNS_CACHE_BACKEND", "memory"),
+		DNSListenAddr:       envString("DNS_LISTEN_ADDR", ":53"),
+		DNSProtocol:         envString("DNS_PROTOCOL", "udp"),
 	}
 }
 

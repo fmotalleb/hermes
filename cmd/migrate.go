@@ -24,7 +24,7 @@ var migrateCmd = &cobra.Command{
 		}
 		defer app.Close(context.Background())
 
-		return migrations.Apply(ctx, app.DB, migrations.All()...)
+		return migrations.Apply(ctx, app.DB, app.Logger, migrations.All()...)
 	},
 }
 

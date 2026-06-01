@@ -14,7 +14,9 @@
                 "APP_ENV":"local"
             },
             "args": [
-                "api"
+                "api",
+                "--log-level=debug",
+                "--migrate=true"
             ]
         },
         {

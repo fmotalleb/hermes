@@ -4,17 +4,39 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ThreeDotsLabs/watermill"
 	"github.com/fmotalleb/hermes/internal/pubsub"
 	"github.com/fmotalleb/hermes/internal/runtime"
 )
 
 func newPubSubBus(cfg runtime.Config, app *runtime.App) (pubsub.Bus, error) {
+	logger := watermill.NewSlogLogger(app.Logger)
+
 	switch strings.ToLower(strings.TrimSpace(cfg.PubSubBackend)) {
 	case "", "gochannel", "memory", "local":
-		return pubsub.NewGoChannel(), nil
+		return pubsub.NewGoChannel(logger), nil
 	case "redis", "redisstream":
-		return pubsub.NewRedisStream(app.Redis, "")
+		return pubsub.NewRedisStream(app.Redis, cfg.PubSubConsumerGroup, logger)
+	case "kafka":
+		brokers := splitNonEmpty(cfg.PubSubBrokers)
+		return pubsub.NewKafka(brokers, cfg.PubSubConsumerGroup, logger)
+	case "postgres", "sql":
+		return pubsub.NewPostgres(app.DB, cfg.PubSubConsumerGroup, logger)
+	case "rabbitmq", "amqp":
+		return pubsub.NewRabbitMQ(cfg.PubSubRabbitMQURI, cfg.PubSubConsumerGroup, logger)
 	default:
 		return nil, fmt.Errorf("unknown pubsub backend: %s", cfg.PubSubBackend)
 	}
+}
+
+func splitNonEmpty(value string) []string {
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
