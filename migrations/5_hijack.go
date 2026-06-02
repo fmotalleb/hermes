@@ -13,19 +13,41 @@ func hijack() Migration {
 CREATE TYPE hijack_policy AS ENUM (
 	'block',
 	'proxy',
+	'forward',
 	'raw'
 );`
 
 			const createHijacksTable = `
 CREATE TABLE IF NOT EXISTS hijacks (
 	id UUID PRIMARY KEY DEFAULT uuidv7(),
+
 	name TEXT NOT NULL,
-	policy hijack_policy NOT NULL,
-	forward_policy forward_policy NOT NULL DEFAULT 'default'::forward_policy,
-	forward_zone_id UUID REFERENCES forward_zones(id) ON DELETE SET NULL,
+	value TEXT NOT NULL,
+
 	record_type dns_record_type NOT NULL,
+
+	policy hijack_policy NOT NULL,
+
+	forward_policy forward_policy NOT NULL
+		DEFAULT 'default'::forward_policy,
+
+	forward_zone_id UUID
+		REFERENCES forward_zones(id)
+		ON DELETE SET NULL,
+
+	ttl utin32 NOT NULL DEFAULT 300,
+
 	created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-	updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+	CONSTRAINT chk_hijack_proxy_requires_zone
+	CHECK (
+		policy <> 'forward'
+		OR forward_zone_id IS NOT NULL
+	),
+
+	CONSTRAINT uq_hijacks_name_record_type
+	UNIQUE (name, record_type)
 );
 `
 
