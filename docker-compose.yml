@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: docker.arvancloud.ir/library/postgres:18-alpine
+    image: library/postgres:18-alpine
     environment:
       POSTGRES_USER: hermes
       POSTGRES_PASSWORD: hermes
@@ -16,7 +16,7 @@ services:
       retries: 5
 
   redis:
-    image: docker.arvancloud.ir/library/redis:8-alpine
+    image: library/redis:8-alpine
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     ports:
       - "6379:6379"
@@ -27,6 +27,8 @@ services:
       retries: 5
 
   rabbitmq:
+    profiles:
+      - rabbitmq
     image: library/rabbitmq:4.3-management
     container_name: hermes-rabbitmq
     hostname: rabbitmq
@@ -38,7 +40,7 @@ services:
       RABBITMQ_DEFAULT_PASS: hermes
       RABBITMQ_DEFAULT_VHOST: /
   jaeger:
-    image: docker.arvancloud.ir/jaegertracing/jaeger:latest
+    image: jaegertracing/jaeger:latest
     ports:
       - "16686:16686"
       - "4317:4317"
