@@ -11,7 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/XSAM/otelsql"
 	"github.com/google/uuid"
+	_ "github.com/lib/pq"
 	promclient "github.com/prometheus/client_golang/prometheus"
 	promhttp "github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
@@ -25,8 +27,6 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-
-	_ "github.com/lib/pq"
 )
 
 type App struct {
@@ -55,10 +55,25 @@ func New(ctx context.Context, logger *slog.Logger) (*App, error) {
 		logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	}
 
-	db, err := sql.Open("postgres", cfg.DBDsn)
+	driverName, err := otelsql.Register(
+		"postgres",
+		otelsql.WithAttributes(
+			semconv.DBSystemPostgreSQL,
+		),
+		otelsql.WithSQLCommenter(true),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register otelsql driver: %w", err)
+	}
+
+	db, err := sql.Open(driverName, cfg.DBDsn)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
+	// db, err := sql.Open("postgres", cfg.DBDsn)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("open database: %w", err)
+	// }
 	db.SetMaxIdleConns(cfg.DBMaxIdle)
 	db.SetMaxOpenConns(cfg.DBMaxOpen)
 	db.SetConnMaxLifetime(30 * time.Minute)

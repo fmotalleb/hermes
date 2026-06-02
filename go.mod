@@ -15,6 +15,7 @@ require (
 	github.com/ThreeDotsLabs/watermill-kafka/v3 v3.1.2
 	github.com/ThreeDotsLabs/watermill-redisstream v1.4.5
 	github.com/ThreeDotsLabs/watermill-sql/v4 v4.1.5
+	github.com/XSAM/otelsql v0.40.0
 	github.com/fmotalleb/go-tools v0.1.73
 	github.com/gobwas/glob v0.2.3
 	github.com/google/uuid v1.6.0
