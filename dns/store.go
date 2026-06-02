@@ -41,6 +41,17 @@ type recordRow struct {
 	Priority uint32
 }
 
+type hijackRow struct {
+	ID            string
+	Name          string
+	Value         string
+	Type          models.DNSRecordType
+	Policy        models.HijackPolicy
+	ForwardPolicy models.ForwardPolicy
+	ForwardZoneID *string
+	TTL           uint32
+}
+
 func (s *store) findZone(ctx context.Context, qname string) (zoneRow, error) {
 	const query = `
 SELECT
@@ -140,6 +151,60 @@ WHERE zone_id = $1;`
 	}
 
 	return records, rows.Err()
+}
+
+func (s *store) findHijack(ctx context.Context, qname string, qtype models.DNSRecordType) (hijackRow, error) {
+	const query = `
+SELECT
+  id,
+  name,
+  value,
+  record_type,
+  policy,
+  COALESCE(forward_policy, '') AS forward_policy,
+  COALESCE(forward_zone_id::text, '') AS forward_zone_id,
+  ttl
+FROM hijacks
+WHERE record_type = $2
+  AND (
+    name = $1
+    OR $1 LIKE '%' || '.' || name
+  )
+ORDER BY CHAR_LENGTH(name) DESC
+LIMIT 1;
+`
+
+	var h hijackRow
+
+	err := s.db.QueryRowContext(ctx, query, qname, qtype).Scan(
+		&h.ID,
+		&h.Name,
+		&h.Value,
+		&h.Type,
+		&h.Policy,
+		&h.ForwardPolicy,
+		&h.ForwardZoneID,
+		&h.TTL,
+	)
+	if err != nil {
+		return hijackRow{}, err
+	}
+
+	return h, nil
+}
+
+func (s *store) lookupHijack(ctx context.Context, qname string, qtype models.DNSRecordType) (hijackRow, bool) {
+	h, err := s.findHijack(ctx, qname, qtype)
+	if err != nil {
+		if isNoRows(err) {
+			return hijackRow{}, false
+		}
+
+		s.logger.Error("hijack lookup failed", "error", err, "name", qname, "type", qtype)
+		return hijackRow{}, false
+	}
+
+	return h, true
 }
 
 func isNoRows(err error) bool {

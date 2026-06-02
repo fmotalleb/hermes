@@ -2,6 +2,7 @@ package dns
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -81,6 +82,21 @@ func (h *handler) lookup(ctx context.Context, qname string, qtype uint16, req *d
 	ctx, span := otel.Tracer("dns").Start(ctx, "dns.lookup")
 	defer span.End()
 
+	// TODO Work in progress left open, need to handle proxy mode, and forward mode separately
+	if h, ok := h.store.lookupHijack(ctx, qname, models.DNSRecordType(dns.TypeToString[qtype])); ok {
+		switch h.Policy {
+		case models.HijackPolicyBlock:
+			return nil, errors.New("blocked by hijack")
+		case models.HijackPolicyRaw:
+			return h.Value, nil
+		case models.HijackPolicyProxy:
+			// proxy logic
+			return s.resolveForwarded(ctx, h, qname, qtype)
+		case models.HijackPolicyForward:
+			// forward logic here (depends on forward zone)
+			return s.resolveForwarded(ctx, h, qname, qtype)
+		}
+	}
 	span.SetAttributes(
 		attribute.String("query.name", qname),
 		attribute.Int("query.type", int(qtype)),
