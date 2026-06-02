@@ -18,7 +18,7 @@ type store struct {
 type zoneRow struct {
 	ID            string
 	Name          string
-	ForwardPolicy string
+	ForwardPolicy models.ForwardPolicy
 	ForwardZoneID string
 	TTL           uint32
 }
