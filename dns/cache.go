@@ -15,7 +15,6 @@ const (
 	dnsResponseCacheNegativeTTL       = 10 * time.Second
 	dnsResponseCacheMaximumTTL        = 60 * time.Second
 	dnsResponseCacheRedisKeyNamespace = "dns:response:v1"
-	dnsDefaultCacheBackend            = "memory"
 )
 
 var dnsCacheInvalidBackend = errors.New("cache backend is invalid")
@@ -35,6 +34,9 @@ func (h *handler) cachedResponse(ctx context.Context, req *dns.Msg) (*dns.Msg, b
 	}
 
 	q := req.Question[0]
+	if !h.shouldCache(q) {
+		return nil, false
+	}
 	key := dnsResponseCacheKey(q.Name, q.Qtype, q.Qclass)
 	data, err := h.cache.GetBytes(ctx, key)
 	if err != nil {
@@ -57,6 +59,11 @@ func (h *handler) cacheResponse(ctx context.Context, req, resp *dns.Msg) {
 		return
 	}
 
+	q := req.Question[0]
+	if !h.shouldCache(q) {
+		return
+	}
+
 	ttl, ok := responseCacheTTL(resp)
 	if !ok {
 		return
@@ -67,7 +74,6 @@ func (h *handler) cacheResponse(ctx context.Context, req, resp *dns.Msg) {
 		return
 	}
 
-	q := req.Question[0]
 	key := dnsResponseCacheKey(q.Name, q.Qtype, q.Qclass)
 	_ = h.cache.Set(ctx, key, data, ttl)
 }

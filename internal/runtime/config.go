@@ -4,10 +4,9 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os"
 	"strconv"
-	"strings"
 
+	"github.com/fmotalleb/go-tools/env"
 	"github.com/joho/godotenv"
 )
 
@@ -30,7 +29,8 @@ type Config struct {
 	TracerURL           string
 	TracerRatio         float64
 	PubSubBackend       string
-	CacheBackend        string
+	DNSCacheBackend     string
+	DNSCacheTypes       []string
 	DNSListenAddr       string
 	DNSProtocol         string
 }
@@ -41,85 +41,40 @@ func LoadConfig() Config {
 		log.Fatal("Error loading .env file")
 	}
 	return Config{
-		HTTPPort:            envInt("HTTP_PORT", 8000),
-		MetricsPort:         envInt("METRICS_PORT", 0),
-		AdminNoAuth:         envBool("ADMIN_NO_AUTH", false),
-		AdminUser:           envString("ADMIN_USER", "admin"),
-		AdminPass:           envString("ADMIN_PASS", "admin"),
-		DBDsn:               envString("DATABASE_URL", defaultPostgresDSN()),
-		DBMaxIdle:           envInt("DB_MAX_IDLE_CONNECTION", 5),
-		DBMaxOpen:           envInt("DB_MAX_OPEN_CONNECTION", 10),
-		RedisAddr:           net.JoinHostPort(envString("REDIS_HOST", "127.0.0.1"), strconv.Itoa(envInt("REDIS_PORT", 6379))),
-		RedisDB:             envInt("REDIS_DB", 0),
-		RedisPubSubDB:       envInt("REDIS_PUBSUB_DB", 1),
-		PubSubBrokers:       envString("PUBSUB_BROKERS", ""),
-		PubSubRabbitMQURI:   envString("PUBSUB_RABBITMQ_URI", ""),
-		PubSubConsumerGroup: envString("PUBSUB_CONSUMER_GROUP", "hermes"),
-		TraceExporter:       envString("TRACE_EXPORTER", "otlp"),
-		TracerURL:           envString("TRACER_URL", "localhost:4317"),
-		TracerRatio:         envFloat("TRACER_RATIO", 1),
-		PubSubBackend:       envString("PUBSUB_BACKEND", "gochannel"),
-		CacheBackend:        envString("DNS_CACHE_BACKEND", "memory"),
-		DNSListenAddr:       envString("DNS_LISTEN_ADDR", ":53"),
-		DNSProtocol:         envString("DNS_PROTOCOL", "udp"),
+		HTTPPort:            env.IntOr("HTTP_PORT", 8000),
+		MetricsPort:         env.IntOr("METRICS_PORT", 0),
+		AdminNoAuth:         env.BoolOr("ADMIN_NO_AUTH", false),
+		AdminUser:           env.Or("ADMIN_USER", "admin"),
+		AdminPass:           env.Or("ADMIN_PASS", "admin"),
+		DBDsn:               env.Or("DATABASE_URL", defaultPostgresDSN()),
+		DBMaxIdle:           env.IntOr("DB_MAX_IDLE_CONNECTION", 5),
+		DBMaxOpen:           env.IntOr("DB_MAX_OPEN_CONNECTION", 10),
+		RedisAddr:           net.JoinHostPort(env.Or("REDIS_HOST", "127.0.0.1"), strconv.Itoa(env.IntOr("REDIS_PORT", 6379))),
+		RedisDB:             env.IntOr("REDIS_DB", 0),
+		RedisPubSubDB:       env.IntOr("REDIS_PUBSUB_DB", 1),
+		PubSubBrokers:       env.Or("PUBSUB_BROKERS", ""),
+		PubSubRabbitMQURI:   env.Or("PUBSUB_RABBITMQ_URI", ""),
+		PubSubConsumerGroup: env.Or("PUBSUB_CONSUMER_GROUP", "hermes"),
+		TraceExporter:       env.Or("TRACE_EXPORTER", "otlp"),
+		TracerURL:           env.Or("TRACER_URL", "localhost:4317"),
+		TracerRatio:         env.Float64Or("TRACER_RATIO", 1),
+		PubSubBackend:       env.Or("PUBSUB_BACKEND", "gochannel"),
+		DNSCacheBackend:     env.Or("DNS_CACHE_BACKEND", "memory"),
+		DNSCacheTypes:       env.SliceOr("DNS_CACHE_TYPES", []string{"A", "AAAA", "CNAME"}),
+		DNSListenAddr:       env.Or("DNS_LISTEN_ADDR", ":53"),
+		DNSProtocol:         env.Or("DNS_PROTOCOL", "udp"),
 	}
 }
 
 func defaultPostgresDSN() string {
-	host := envString("DB_HOST", "127.0.0.1")
-	port := envInt("DB_PORT", 5432)
-	user := envString("DB_USER", "hermes")
-	pass := envString("DB_PASSWORD", "hermes")
-	name := envString("DB_NAME", "hermes")
-	sslMode := envString("DB_SSL_MODE", "disable")
+	host := env.Or("DB_HOST", "127.0.0.1")
+	port := env.IntOr("DB_PORT", 5432)
+	user := env.Or("DB_USER", "hermes")
+	pass := env.Or("DB_PASSWORD", "hermes")
+	name := env.Or("DB_NAME", "hermes")
+	sslMode := env.Or("DB_SSL_MODE", "disable")
 	return fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		host, port, user, pass, name, sslMode,
 	)
-}
-
-func envString(name, fallback string) string {
-	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
-		return value
-	}
-	return fallback
-}
-
-func envInt(name string, fallback int) int {
-	value := strings.TrimSpace(os.Getenv(name))
-	if value == "" {
-		return fallback
-	}
-	parsed, err := strconv.Atoi(value)
-	if err != nil {
-		return fallback
-	}
-	return parsed
-}
-
-func envFloat(name string, fallback float64) float64 {
-	value := strings.TrimSpace(os.Getenv(name))
-	if value == "" {
-		return fallback
-	}
-	parsed, err := strconv.ParseFloat(value, 64)
-	if err != nil {
-		return fallback
-	}
-	return parsed
-}
-
-func envBool(name string, fallback bool) bool {
-	value := strings.ToLower(strings.TrimSpace(os.Getenv(name)))
-	if value == "" {
-		return fallback
-	}
-	switch value {
-	case "1", "true", "t", "yes", "y":
-		return true
-	case "0", "false", "f", "no", "n":
-		return false
-	default:
-		return fallback
-	}
 }

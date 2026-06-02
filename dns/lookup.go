@@ -10,6 +10,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/fmotalleb/hermes/models"
 )
 
 func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
@@ -38,6 +40,7 @@ func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		attribute.Int("class", int(q.Qclass)),
 		attribute.Int("type", int(q.Qtype)),
 	))
+
 	if resp, ok := h.cachedResponse(ctx, r); ok {
 		span.AddEvent("cache hit", trace.WithAttributes(
 			attribute.String("name", q.Name),
@@ -144,7 +147,7 @@ func (h *handler) lookup(ctx context.Context, qname string, qtype uint16, req *d
 	}
 
 	defaultForwardZoneID := ""
-	if zone.ForwardPolicy == "default" {
+	if zone.ForwardPolicy == models.ForwardPolicyDefault {
 		settings, err := h.store.loadSettings(ctx)
 		if err != nil {
 			span.RecordError(err)

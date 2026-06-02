@@ -16,13 +16,15 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/fmotalleb/hermes/models"
 )
 
 func effectiveForwardZoneID(zone zoneRow, defaultForwardZoneID string) string {
 	switch zone.ForwardPolicy {
-	case "custom":
+	case models.ForwardPolicyCustom:
 		return zone.ForwardZoneID
-	case "default":
+	case models.ForwardPolicyDefault:
 		return defaultForwardZoneID
 	default:
 		return ""

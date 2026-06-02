@@ -47,7 +47,7 @@ INSERT INTO zones (name, forward_policy, forward_zone_id, ttl)
 VALUES (
   $1,
   $2,
-  CASE WHEN $2 = 'custom' THEN NULLIF($3::text, '')::uuid ELSE NULL END,
+  CASE WHEN $2 = 'custom'::forward_policy THEN NULLIF($3::text, '')::uuid ELSE NULL END,
   COALESCE($4, 300)
 )
 RETURNING
@@ -70,7 +70,7 @@ SET
   name = $1,
   forward_policy = $2,
   forward_zone_id = CASE
-    WHEN $2 = 'custom' THEN NULLIF($3::text, '')::uuid
+    WHEN $2 = 'custom'::forward_policy THEN NULLIF($3::text, '')::uuid
     ELSE NULL
   END,
   ttl = COALESCE($4, ttl)

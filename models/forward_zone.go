@@ -127,3 +127,11 @@ type ForwardZone struct {
 	CreatedAt time.Time        `json:"created_at"`
 	UpdatedAt time.Time        `json:"updated_at"`
 }
+
+type ForwardPolicy = string
+
+const (
+	ForwardPolicyNone    = ForwardPolicy("none")
+	ForwardPolicyCustom  = ForwardPolicy("custom")
+	ForwardPolicyDefault = ForwardPolicy("default")
+)

@@ -28,7 +28,7 @@ func Serve(ctx context.Context, app *runtime.App, bus pubsub.Bus, opts ...Server
 	tr := otel.GetTracerProvider().Tracer("dns-server")
 
 	var c cache.Cache
-	switch app.Config.CacheBackend {
+	switch app.Config.DNSCacheBackend {
 	case "redis":
 		c = cache.NewRedisCache(app.Redis, dnsResponseCacheRedisKeyNamespace)
 	case "memory":
@@ -36,14 +36,25 @@ func Serve(ctx context.Context, app *runtime.App, bus pubsub.Bus, opts ...Server
 	case "none":
 		c = cache.NewNoneCache()
 	default:
-		return fmt.Errorf("%w: %s", dnsCacheInvalidBackend, app.Config.CacheBackend)
+		return fmt.Errorf("%w: %s", dnsCacheInvalidBackend, app.Config.DNSCacheBackend)
+	}
+
+	cacheTypes := make([]uint16, len(app.Config.DNSCacheTypes))
+
+	for i, v := range app.Config.DNSCacheTypes {
+		if tv, ok := dns.StringToType[v]; ok {
+			cacheTypes[i] = tv
+		} else {
+			return fmt.Errorf("type defined in the DNS_CACHE_TYPES: %s, is undefined", v)
+		}
 	}
 
 	h := &handler{
-		store:  store,
-		logger: app.Logger,
-		tracer: tr,
-		cache:  c,
+		store:      store,
+		logger:     app.Logger,
+		tracer:     tr,
+		cache:      c,
+		cacheTypes: cacheTypes,
 	}
 
 	go func() {

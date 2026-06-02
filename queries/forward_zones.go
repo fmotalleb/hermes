@@ -16,7 +16,7 @@ SELECT
   (
     SELECT COUNT(*)
     FROM zones z
-    WHERE z.forward_policy = 'custom'
+    WHERE z.forward_policy = 'custom'::forward_policy
       AND z.forward_zone_id = forward_zones.id
   ) AS zone_count,
   created_at,
@@ -33,7 +33,7 @@ SELECT
   (
     SELECT COUNT(*)
     FROM zones z
-    WHERE z.forward_policy = 'custom'
+    WHERE z.forward_policy = 'custom'::forward_policy
       AND z.forward_zone_id = forward_zones.id
   ) AS zone_count,
   created_at,
@@ -51,7 +51,7 @@ RETURNING
   (
     SELECT COUNT(*)
     FROM zones z
-    WHERE z.forward_policy = 'custom'
+    WHERE z.forward_policy = 'custom'::forward_policy
       AND z.forward_zone_id = forward_zones.id
   ) AS zone_count,
   created_at,
@@ -70,19 +70,21 @@ RETURNING
   (
     SELECT COUNT(*)
     FROM zones z
-    WHERE z.forward_policy = 'custom'
+    WHERE z.forward_policy = 'custom'::forward_policy
       AND z.forward_zone_id = forward_zones.id
   ) AS zone_count,
   created_at,
   updated_at;`
 
-const deleteForwardZoneQuery = `DELETE FROM forward_zones WHERE id = $1;`
-const detachForwardZoneFromZonesQuery = `
+const (
+	deleteForwardZoneQuery          = `DELETE FROM forward_zones WHERE id = $1;`
+	detachForwardZoneFromZonesQuery = `
 UPDATE zones
 SET
-  forward_policy = 'none',
+  forward_policy = 'none'::forward_policy,
   forward_zone_id = NULL
 WHERE forward_policy = 'custom' AND forward_zone_id = $1;`
+)
 
 func scanForwardZone(row scanner) (models.ForwardZone, error) {
 	var zone models.ForwardZone

@@ -251,46 +251,46 @@ func (r *repository) updateSettings(ctx context.Context, req settingsRequest) (m
 func normalizeForwardPolicyForCreate(policy, forwardZoneID *string) (string, *string, error) {
 	if policy != nil {
 		switch strings.TrimSpace(strings.ToLower(*policy)) {
-		case "", "default":
-			return "default", nil, nil
-		case "none":
-			return "none", nil, nil
-		case "custom":
+		case "", models.ForwardPolicyDefault:
+			return models.ForwardPolicyDefault, nil, nil
+		case models.ForwardPolicyNone:
+			return models.ForwardPolicyNone, nil, nil
+		case models.ForwardPolicyCustom:
 			if forwardZoneID == nil || strings.TrimSpace(*forwardZoneID) == "" {
 				return "", nil, errors.New("forward zone id is required for custom forwarding")
 			}
 			id := strings.TrimSpace(*forwardZoneID)
-			return "custom", &id, nil
+			return models.ForwardPolicyCustom, &id, nil
 		default:
 			return "", nil, fmt.Errorf("invalid forward policy: %s", *policy)
 		}
 	}
 
 	if forwardZoneID == nil {
-		return "default", nil, nil
+		return models.ForwardPolicyDefault, nil, nil
 	}
 
 	switch strings.TrimSpace(strings.ToLower(*forwardZoneID)) {
-	case "", "default":
-		return "default", nil, nil
-	case "none":
-		return "none", nil, nil
+	case "", models.ForwardPolicyDefault:
+		return models.ForwardPolicyDefault, nil, nil
+	case models.ForwardPolicyNone:
+		return models.ForwardPolicyNone, nil, nil
 	default:
 		id := strings.TrimSpace(*forwardZoneID)
-		return "custom", &id, nil
+		return models.ForwardPolicyCustom, &id, nil
 	}
 }
 
 func normalizeForwardPolicyForUpdate(current models.ZoneData, policy, forwardZoneID *string) (string, *string, error) {
 	if policy == nil && forwardZoneID == nil {
 		switch current.ForwardPolicy {
-		case "custom":
+		case models.ForwardPolicyCustom:
 			id := current.ForwardZoneID
-			return "custom", &id, nil
-		case "default", "none":
+			return models.ForwardPolicyCustom, &id, nil
+		case models.ForwardPolicyDefault, "none":
 			return current.ForwardPolicy, nil, nil
 		default:
-			return "default", nil, nil
+			return models.ForwardPolicyDefault, nil, nil
 		}
 	}
 
