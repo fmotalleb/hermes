@@ -66,7 +66,11 @@ func NewRedisStream(client redis.UniversalClient, consumerGroup string, logger w
 		return nil, fmt.Errorf("create redisstream publisher: %w", err)
 	}
 
-	subscriberConfig := redisstream.SubscriberConfig{Client: client}
+	subscriberConfig := redisstream.SubscriberConfig{
+		Client:         client,
+		FanOutOldestId: "$", // Discard older events
+		OldestId:       "$",
+	}
 	if consumerGroup != "" {
 		subscriberConfig.ConsumerGroup = consumerGroup
 	}
@@ -188,6 +192,7 @@ func (b *watermillBus) Publish(ctx context.Context, topic string, payload []byte
 
 	msg := message.NewMessage(watermill.NewUUID(), payload)
 	msg.SetContext(ctx)
+
 	return b.publisher.Publish(topic, msg)
 }
 
