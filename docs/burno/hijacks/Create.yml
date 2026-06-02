@@ -1,0 +1,27 @@
+info:
+  name: Create Hijack
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: "{{base_url_hijacks}}"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "example.com",
+        "value": "1.2.3.4",
+        "type": "A",
+        "policy": "proxy",
+        "forward_policy": "custom",
+        "forward_zone_id": "019e8780-04c4-7710-9be4-72dc539974e3",
+        "ttl": 300
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

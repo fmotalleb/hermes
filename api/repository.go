@@ -296,3 +296,69 @@ func normalizeForwardPolicyForUpdate(current models.ZoneData, policy, forwardZon
 
 	return normalizeForwardPolicyForCreate(policy, forwardZoneID)
 }
+
+func (r *repository) getHijacks(ctx context.Context, limit, offset uint32) ([]models.HijackRecord, error) {
+	return queries.GetHijacks(ctx, r.db, limit, offset)
+}
+
+func (r *repository) getHijack(ctx context.Context, id string) (models.HijackRecord, error) {
+	return queries.GetHijack(ctx, r.db, id)
+}
+
+func (r *repository) searchHijack(ctx context.Context, name string) ([]models.HijackRecord, error) {
+	return queries.SearchHijack(ctx, r.db, name)
+}
+
+func (r *repository) hijackLookup(ctx context.Context, name string, recordType models.DNSRecordType) (models.HijackRecord, error) {
+	return queries.HijackLookup(ctx, r.db, name, recordType)
+}
+
+func (r *repository) createHijack(ctx context.Context, req hijackRequest) (models.HijackRecord, error) {
+	record, err := queries.CreateHijack(
+		ctx,
+		r.db,
+		req.Name,
+		req.Value,
+		req.Type,
+		req.Policy,
+		req.ForwardPolicy,
+		req.ForwardZoneID,
+		req.TTL,
+	)
+	if err != nil {
+		return models.HijackRecord{}, err
+	}
+
+	r.invalidateDNSCache(ctx)
+	return record, nil
+}
+
+func (r *repository) updateHijack(ctx context.Context, id string, req hijackRequest) (models.HijackRecord, error) {
+	record, err := queries.UpdateHijack(
+		ctx,
+		r.db,
+		id,
+		req.Name,
+		req.Value,
+		req.Type,
+		req.Policy,
+		req.ForwardPolicy,
+		req.ForwardZoneID,
+		req.TTL,
+	)
+	if err != nil {
+		return models.HijackRecord{}, err
+	}
+
+	r.invalidateDNSCache(ctx)
+	return record, nil
+}
+
+func (r *repository) deleteHijack(ctx context.Context, id string) (any, error) {
+	if err := queries.DeleteHijack(ctx, r.db, id); err != nil {
+		return nil, err
+	}
+
+	r.invalidateDNSCache(ctx)
+	return fmt.Sprintf("hijack successfully deleted with id: %s", id), nil
+}

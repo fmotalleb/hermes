@@ -11,8 +11,8 @@ http:
     data: |-
       {
         "name": "test",
-        "type":"TXT",
-        "value":"updatetxt"
+        "type":"A",
+        "value":"1.1.1.1"
       }
   auth: inherit
 

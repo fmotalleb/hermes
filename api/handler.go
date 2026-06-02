@@ -326,3 +326,107 @@ func (h *handler) metrics(ctx *web.Context) (any, error) {
 	h.metricsHandler.ServeHTTP(ctx.ResponseWriter, ctx.Request)
 	return web.Responded{}, nil
 }
+
+func (h *handler) getHijacks(ctx *web.Context) (any, error) {
+	p := request.PaginatorOf(ctx)
+
+	hijacks, err := h.repo.getHijacks(ctx, p.Limit, p.Offset)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]any{
+		"limit":  p.Limit,
+		"offset": p.Offset,
+		"data":   hijacks,
+	}, nil
+}
+
+func (h *handler) getHijack(ctx *web.Context) (any, error) {
+	id := ctx.PathParam("id")
+
+	r, err := h.repo.getHijack(ctx, id)
+	if err != nil {
+		return notFoundEntity(ctx, "failed to get hijack", "hijack_id", id, err)
+	}
+
+	return r, nil
+}
+
+func (h *handler) createHijack(ctx *web.Context) (any, error) {
+	var req hijackRequest
+
+	if err := ctx.Bind(&req); err != nil {
+		return nil, err
+	}
+
+	req.Name = normalizeName(req.Name)
+	req.Value = normalizeName(req.Value)
+
+	if req.Name == "" {
+		return nil, errors.New("hijack name is required")
+	}
+	if req.Value == "" {
+		return nil, errors.New("hijack value is required")
+	}
+	if !validRecordType(req.Type) {
+		return nil, fmt.Errorf("%w: %s", errInvalidRecordType, req.Type)
+	}
+	if !validHijackPolicy(req.Policy) {
+		return nil, fmt.Errorf("invalid hijack policy: %s", req.Policy)
+	}
+
+	record, err := h.repo.createHijack(ctx, req)
+	if err != nil {
+		return nil, normalizeCreateError(err)
+	}
+
+	return record, nil
+}
+
+func (h *handler) updateHijack(ctx *web.Context) (any, error) {
+	id := ctx.PathParam("id")
+
+	var req hijackRequest
+
+	if err := ctx.Bind(&req); err != nil {
+		return nil, err
+	}
+
+	req.Name = normalizeName(req.Name)
+	req.Value = normalizeName(req.Value)
+
+	if req.Name == "" {
+		return nil, errors.New("hijack name is required")
+	}
+	if req.Value == "" {
+		return nil, errors.New("hijack value is required")
+	}
+	if !validRecordType(req.Type) {
+		return nil, fmt.Errorf("%w: %s", errInvalidRecordType, req.Type)
+	}
+	if !validHijackPolicy(req.Policy) {
+		return nil, fmt.Errorf("invalid hijack policy: %s", req.Policy)
+	}
+
+	record, err := h.repo.updateHijack(ctx, id, req)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return notFoundEntity(ctx, "failed to update hijack", "hijack_id", id, err)
+		}
+		return nil, normalizeCreateError(err)
+	}
+
+	return record, nil
+}
+
+func (h *handler) deleteHijack(ctx *web.Context) (any, error) {
+	id := ctx.PathParam("id")
+
+	value, err := h.repo.deleteHijack(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return notFoundEntity(ctx, "failed to delete hijack", "hijack_id", id, err)
+	}
+
+	return value, err
+}

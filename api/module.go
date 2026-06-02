@@ -38,6 +38,13 @@ func Register(router *web.Router, db queries.DB, c cache.Cache, bus pubsub.Bus, 
 	router.POST(apiRoute("forward-zones"), handler.createForwardZone)
 	router.POST(apiRoute("forward-zones/{id}"), handler.updateForwardZone)
 	router.DELETE(apiRoute("forward-zones/{id}"), handler.deleteForwardZone)
+
+	router.GET(apiRoute("hijacks"), handler.getHijacks)
+	router.GET(apiRoute("hijacks/{id}"), handler.getHijack)
+	router.POST(apiRoute("hijacks"), handler.createHijack)
+	router.POST(apiRoute("hijacks/{id}"), handler.updateHijack)
+	router.DELETE(apiRoute("hijacks/{id}"), handler.deleteHijack)
+
 	router.GET(apiRoute("settings"), handler.getSettings)
 	router.POST(apiRoute("settings"), handler.updateSettings)
 	router.POST(apiRoute("pubsub/{topic}"), handler.publishEvent)

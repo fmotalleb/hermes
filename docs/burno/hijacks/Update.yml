@@ -1,0 +1,27 @@
+info:
+  name: Update Hijack
+  type: http
+  seq: 4
+
+http:
+  method: POST
+  url: "{{base_url_hijacks}}/019e8780-04c4-7710-9be4-72dc539974e3"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "example.com",
+        "value": "5.6.7.8",
+        "type": "A",
+        "policy": "raw",
+        "forward_policy": "",
+        "forward_zone_id": "",
+        "ttl": 600
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

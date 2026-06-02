@@ -13,10 +13,10 @@ type forwardZoneRequest struct {
 }
 
 type zoneRequest struct {
-	Name          string  `json:"name"`
-	ForwardPolicy *string `json:"forward_policy,omitempty"`
-	ForwardZoneID *string `json:"forward_zone_id,omitempty"`
-	TTL           *uint32 `json:"ttl,omitempty"`
+	Name          string                `json:"name"`
+	ForwardPolicy *models.ForwardPolicy `json:"forward_policy,omitempty"`
+	ForwardZoneID *string               `json:"forward_zone_id,omitempty"`
+	TTL           *uint32               `json:"ttl,omitempty"`
 }
 
 type recordRequest struct {
@@ -46,4 +46,51 @@ func validRecordType(t models.DNSRecordType) bool {
 	default:
 		return false
 	}
+}
+
+var errInvalidHijackPolicy = errors.New("invalid hijack policy")
+
+type hijackRequest struct {
+	Name          string               `json:"name"`
+	Value         string               `json:"value"`
+	Type          models.DNSRecordType `json:"type"`
+	Policy        models.HijackPolicy  `json:"policy"`
+	ForwardPolicy models.ForwardPolicy `json:"forward_policy,omitempty"`
+	ForwardZoneID *string              `json:"forward_zone_id,omitempty"`
+	TTL           *uint32              `json:"ttl,omitempty"`
+}
+
+func validHijackPolicy(p models.HijackPolicy) bool {
+	switch p {
+	case models.HijackPolicyBlock,
+		models.HijackPolicyProxy,
+		models.HijackPolicyRaw:
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeHijackPolicy(p string) string {
+	return strings.TrimSpace(strings.ToLower(p))
+}
+
+func validateHijackRequest(req hijackRequest) error {
+	req.Name = normalizeName(req.Name)
+	req.Value = normalizeName(req.Value)
+
+	if req.Name == "" {
+		return errors.New("hijack name is required")
+	}
+	if req.Value == "" {
+		return errors.New("hijack value is required")
+	}
+	if !validRecordType(req.Type) {
+		return errInvalidRecordType
+	}
+	if !validHijackPolicy(req.Policy) {
+		return errInvalidHijackPolicy
+	}
+
+	return nil
 }

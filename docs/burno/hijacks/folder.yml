@@ -1,0 +1,12 @@
+info:
+  name: hijacks
+  type: folder
+  seq: 5
+
+request:
+  auth: inherit
+  variables:
+    - name: base_url_zones
+      value: "{{base_url}}/zones"
+    - name: hijack_id
+      value: 019e8780-313e-7b6f-aff1-900828c392fd
