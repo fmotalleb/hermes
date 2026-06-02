@@ -11,6 +11,7 @@
             "mode": "auto",
             "program": "${workspaceFolder}",
             "env": {
+                "INSTANCE_NAME":"api",
                 "APP_ENV":"local"
             },
             "args": [
@@ -27,7 +28,24 @@
             "cwd": "${workspaceFolder}",
             "program": "${workspaceFolder}",
             "env": {
+                "INSTANCE_NAME":"dns.primary",
                 "APP_ENV":"local"
+            },
+            "args": [
+                "dns"
+            ]
+        },
+        {
+            "name": "Start DNS Server Secondary",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}",
+            "env": {
+                "INSTANCE_NAME":"dns.secondary",
+                "APP_ENV":"local",
+                "DNS_LISTEN_ADDR":":8053"
             },
             "args": [
                 "dns"

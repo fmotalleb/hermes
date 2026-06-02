@@ -12,7 +12,7 @@ http:
       {
         "name": "google.com",
         "forward_policy": "custom",
-        "forward_zone_id": "019e46fa-b559-7e6e-b9ed-a850acfe327e",
+        "forward_zone_id": "019e8780-04c4-7710-9be4-72dc539974e3",
         "ttl": 300
       }
   auth: inherit

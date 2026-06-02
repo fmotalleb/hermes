@@ -11,6 +11,7 @@ import (
 )
 
 type Config struct {
+	InstanceName        string
 	HTTPPort            int
 	MetricsPort         int
 	AdminNoAuth         bool
@@ -41,6 +42,7 @@ func LoadConfig() Config {
 		log.Fatal("Error loading .env file")
 	}
 	return Config{
+		InstanceName:        env.Or("INSTANCE_NAME", "server"),
 		HTTPPort:            env.IntOr("HTTP_PORT", 8000),
 		MetricsPort:         env.IntOr("METRICS_PORT", 0),
 		AdminNoAuth:         env.BoolOr("ADMIN_NO_AUTH", false),

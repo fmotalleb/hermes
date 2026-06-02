@@ -43,7 +43,7 @@ var apiCmd = &cobra.Command{
 		api.Register(
 			router,
 			app.DB,
-			cache.NewRedisCache(app.Redis, "hermes"),
+			cache.NewRedisCache(app.Redis, "api"),
 			bus,
 			migrations.NewRunner(app.DB, app.Logger),
 			app.MetricsHandler,

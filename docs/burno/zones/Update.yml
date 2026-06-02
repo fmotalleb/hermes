@@ -10,9 +10,9 @@ http:
     type: json
     data: |-
       {
-        "name": "google.com",
-        "forward_policy": "none",
-        "forward_zone_id": null,
+        "name": "dornica.net",
+        "forward_policy": "custom",
+        "forward_zone_id": "019e8301-faee-736e-a94d-37b357470059",
         "ttl": 300
       }
   auth: inherit

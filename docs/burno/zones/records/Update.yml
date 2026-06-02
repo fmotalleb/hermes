@@ -7,14 +7,12 @@ http:
   method: POST
   url: "{{base_url_zone_records}}/{{record_id}}"
   body:
-    mimeType: application/json
-    text: |
+    type: json
+    data: |-
       {
-        "name": "www",
-        "type": "A",
-        "value": "192.0.2.11",
-        "ttl": 300,
-        "priority": 0
+        "name": "test",
+        "type":"TXT",
+        "value":"updatetxt"
       }
   auth: inherit
 
@@ -23,4 +21,3 @@ settings:
   timeout: 0
   followRedirects: true
   maxRedirects: 5
-

@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -102,7 +103,12 @@ func New(ctx context.Context, logger *slog.Logger) (*App, error) {
 
 	otel.SetTracerProvider(traceProvider)
 	otel.SetMeterProvider(meterProvider)
-
+	otel.SetTextMapPropagator(
+		propagation.NewCompositeTextMapPropagator(
+			propagation.TraceContext{}, // W3C traceparent/tracestate
+			propagation.Baggage{},      // optional: baggage propagation
+		),
+	)
 	return &App{
 		id:             id,
 		Config:         cfg,
@@ -199,7 +205,7 @@ func (a *App) StartMetricsServer(ctx context.Context, exporter http.Handler) err
 func setupTelemetry(ctx context.Context, cfg Config, logger *slog.Logger) (*sdktrace.TracerProvider, *metric.MeterProvider, http.Handler, error) {
 	resourceAttrs := resource.NewWithAttributes(
 		semconv.SchemaURL,
-		semconv.ServiceName("hermes"),
+		semconv.ServiceName("hermes."+cfg.InstanceName),
 	)
 
 	traceProvider, err := newTraceProvider(ctx, cfg, resourceAttrs)
