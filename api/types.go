@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/fmotalleb/hermes/models"
@@ -64,6 +65,7 @@ func validHijackPolicy(p models.HijackPolicy) bool {
 	switch p {
 	case models.HijackPolicyBlock,
 		models.HijackPolicyProxy,
+		models.HijackPolicyForward,
 		models.HijackPolicyRaw:
 		return true
 	default:
@@ -71,26 +73,18 @@ func validHijackPolicy(p models.HijackPolicy) bool {
 	}
 }
 
-func normalizeHijackPolicy(p string) string {
-	return strings.TrimSpace(strings.ToLower(p))
-}
-
 func validateHijackRequest(req hijackRequest) error {
-	req.Name = normalizeName(req.Name)
-	req.Value = normalizeName(req.Value)
-
 	if req.Name == "" {
 		return errors.New("hijack name is required")
 	}
-	if req.Value == "" {
+	if req.Value == "" && req.Policy != models.HijackPolicyRaw {
 		return errors.New("hijack value is required")
 	}
 	if !validRecordType(req.Type) {
-		return errInvalidRecordType
+		return fmt.Errorf("%w: %s", errInvalidRecordType, req.Type)
 	}
 	if !validHijackPolicy(req.Policy) {
-		return errInvalidHijackPolicy
+		return fmt.Errorf("invalid hijack policy: %s", req.Policy)
 	}
-
 	return nil
 }

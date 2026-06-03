@@ -55,7 +55,7 @@ VALUES (
   $4,
   $5,
   CASE
-    WHEN $4 = 'proxy'::hijack_policy
+    WHEN $4 = 'forward'::hijack_policy
     THEN NULLIF($6::text, '')::uuid
     ELSE NULL
   END,

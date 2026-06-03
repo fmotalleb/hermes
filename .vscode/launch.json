@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Start API Server",
+            "name": "API Server",
             "type": "go",
             "request": "launch",
             "mode": "auto",
@@ -21,7 +21,7 @@
             ]
         },
         {
-            "name": "Start DNS Server",
+            "name": "DNS Server",
             "type": "go",
             "request": "launch",
             "mode": "auto",
@@ -36,7 +36,7 @@
             ]
         },
         {
-            "name": "Start DNS Server Secondary",
+            "name": "DNS Server Secondary",
             "type": "go",
             "request": "launch",
             "mode": "auto",

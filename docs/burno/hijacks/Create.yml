@@ -10,12 +10,12 @@ http:
     type: json
     data: |-
       {
-        "name": "example.com",
+        "name": "*.google.com",
         "value": "1.2.3.4",
         "type": "A",
-        "policy": "proxy",
+        "policy": "forward",
         "forward_policy": "custom",
-        "forward_zone_id": "019e8780-04c4-7710-9be4-72dc539974e3",
+        "forward_zone_id": "019e8bd1-6e17-7904-ad2b-8297cc2a0eb5",
         "ttl": 300
       }
   auth: inherit

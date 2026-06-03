@@ -363,17 +363,8 @@ func (h *handler) createHijack(ctx *web.Context) (any, error) {
 	req.Name = normalizeName(req.Name)
 	req.Value = normalizeName(req.Value)
 
-	if req.Name == "" {
-		return nil, errors.New("hijack name is required")
-	}
-	if req.Value == "" {
-		return nil, errors.New("hijack value is required")
-	}
-	if !validRecordType(req.Type) {
-		return nil, fmt.Errorf("%w: %s", errInvalidRecordType, req.Type)
-	}
-	if !validHijackPolicy(req.Policy) {
-		return nil, fmt.Errorf("invalid hijack policy: %s", req.Policy)
+	if err := validateHijackRequest(req); err != nil {
+		return nil, err
 	}
 
 	record, err := h.repo.createHijack(ctx, req)
@@ -396,17 +387,8 @@ func (h *handler) updateHijack(ctx *web.Context) (any, error) {
 	req.Name = normalizeName(req.Name)
 	req.Value = normalizeName(req.Value)
 
-	if req.Name == "" {
-		return nil, errors.New("hijack name is required")
-	}
-	if req.Value == "" {
-		return nil, errors.New("hijack value is required")
-	}
-	if !validRecordType(req.Type) {
-		return nil, fmt.Errorf("%w: %s", errInvalidRecordType, req.Type)
-	}
-	if !validHijackPolicy(req.Policy) {
-		return nil, fmt.Errorf("invalid hijack policy: %s", req.Policy)
+	if err := validateHijackRequest(req); err != nil {
+		return nil, err
 	}
 
 	record, err := h.repo.updateHijack(ctx, id, req)
