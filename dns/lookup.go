@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"path"
+	"strings"
 
 	"github.com/miekg/dns"
 	"go.opentelemetry.io/otel"
@@ -97,12 +99,12 @@ func (h *handler) lookup(ctx context.Context, qname string, qtype uint16, req *d
 	qname = normalizeDNSName(qname)
 	span.SetAttributes(attribute.String("query.normalized_name", qname))
 
-	zone, err := h.store.findZone(ctx, qname)
+	zone, err := h.dnsStore.findZone(ctx, qname)
 	if err != nil {
 		if isNoRows(err) {
 			span.AddEvent("zone not found")
 
-			settings, settingsErr := h.store.loadSettings(ctx)
+			settings, settingsErr := h.dnsStore.loadSettings(ctx)
 			if settingsErr != nil {
 				span.RecordError(settingsErr)
 				span.SetStatus(codes.Error, "failed to load settings")
@@ -132,7 +134,7 @@ func (h *handler) lookup(ctx context.Context, qname string, qtype uint16, req *d
 		attribute.String("zone.forward_zone_id", zone.ForwardZoneID),
 	)
 
-	records, err := h.store.recordsForZone(ctx, zone.ID)
+	records, err := h.dnsStore.recordsForZone(ctx, zone.ID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to load records")
@@ -156,7 +158,7 @@ func (h *handler) lookup(ctx context.Context, qname string, qtype uint16, req *d
 
 	defaultForwardZoneID := ""
 	if zone.ForwardPolicy == models.ForwardPolicyDefault {
-		settings, err := h.store.loadSettings(ctx)
+		settings, err := h.dnsStore.loadSettings(ctx)
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "failed to load settings")
@@ -184,38 +186,109 @@ func (h *handler) lookup(ctx context.Context, qname string, qtype uint16, req *d
 }
 
 func (h *handler) hijack(ctx context.Context, qname string, qtype uint16, req *dns.Msg) (*dns.Msg, bool) {
-	if hr, ok := h.store.lookupHijack(ctx, qname, models.DNSRecordType(dns.TypeToString[qtype])); ok {
-		switch hr.Policy {
-		case models.HijackPolicyBlock:
-			msg := new(dns.Msg)
-			msg.SetReply(req)
-			msg.Answer = []dns.RR{
-				&dns.NXNAME{},
-			}
-			return msg, true
-		case models.HijackPolicyRaw:
-			msg := new(dns.Msg)
-			msg.SetReply(req)
-			msg.Answer = []dns.RR{
-				&dns.NXNAME{},
-			}
-			msg.Answer = convertRecords(qname, qname, []record{
-				{
-					Name:     qname,
-					Type:     hr.Type,
-					Value:    hr.Value,
-					TTL:      hr.TTL,
-					Priority: 0,
-				},
-			})
-			return msg, true
-		case models.HijackPolicyProxy:
-			// TODO: proxy logic implementation
-			panic("unhandled state")
-		case models.HijackPolicyForward:
-			ans, _ := h.forward(ctx, req, *hr.ForwardZoneID)
-			return ans, true
+	hijacks, ok := h.lookupHijacks(ctx, models.DNSRecordType(dns.TypeToString[qtype]))
+	if !ok {
+		return nil, false
+	}
+
+	hr, ok := selectBestHijack(qname, hijacks)
+	if !ok {
+		return nil, false
+	}
+
+	switch hr.Policy {
+	case models.HijackPolicyBlock:
+		msg := new(dns.Msg)
+		msg.SetReply(req)
+		msg.Answer = []dns.RR{
+			&dns.NXNAME{},
 		}
+		return msg, true
+	case models.HijackPolicyRaw:
+		msg := new(dns.Msg)
+		msg.SetReply(req)
+		msg.Answer = convertRecords(qname, qname, []record{
+			{
+				Name:     qname,
+				Type:     hr.Type,
+				Value:    hr.Value,
+				TTL:      hr.TTL,
+				Priority: 0,
+			},
+		})
+		return msg, true
+	case models.HijackPolicyProxy:
+		// TODO: proxy logic implementation
+		panic("unhandled state")
+	case models.HijackPolicyForward:
+		ans, _ := h.forward(ctx, req, *hr.ForwardZoneID)
+		return ans, true
 	}
 	return nil, false
+}
+
+func selectBestHijack(qname string, hijacks []hijackRow) (hijackRow, bool) {
+	normalizedQname := normalizeDNSName(qname)
+
+	var bestHijack *hijackRow
+	var bestScore hijackPatternScore
+
+	for i := range hijacks {
+		hr := hijacks[i]
+		pattern := normalizeDNSName(hr.Name)
+
+		ok, err := path.Match(pattern, normalizedQname)
+		if err != nil || !ok {
+			continue
+		}
+
+		currentScore := specificityOfHijack(pattern, normalizedQname)
+
+		if bestHijack == nil || moreSpecificHijack(currentScore, bestScore) {
+			bestHijack = &hr
+			bestScore = currentScore
+		}
+	}
+
+	if bestHijack == nil {
+		return hijackRow{}, false
+	}
+
+	return *bestHijack, true
+}
+
+type hijackPatternScore struct {
+	exact         bool
+	wildcardCount int
+	literalCount  int
+	length        int
+	pattern       string
+}
+
+func specificityOfHijack(pattern, qname string) hijackPatternScore {
+	wildcards := strings.Count(pattern, "*") + strings.Count(pattern, "?") + strings.Count(pattern, "[")
+	literals := len([]rune(pattern)) - wildcards
+	return hijackPatternScore{
+		exact:         pattern == qname,
+		wildcardCount: wildcards,
+		literalCount:  literals,
+		length:        len([]rune(pattern)),
+		pattern:       pattern,
+	}
+}
+
+func moreSpecificHijack(a, b hijackPatternScore) bool {
+	if a.exact != b.exact {
+		return a.exact
+	}
+	if a.wildcardCount != b.wildcardCount {
+		return a.wildcardCount < b.wildcardCount
+	}
+	if a.literalCount != b.literalCount {
+		return a.literalCount > b.literalCount
+	}
+	if a.length != b.length {
+		return a.length > b.length
+	}
+	return a.pattern < b.pattern
 }

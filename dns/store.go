@@ -153,7 +153,7 @@ WHERE zone_id = $1;`
 	return records, rows.Err()
 }
 
-func (s *store) findHijack(ctx context.Context, qname string, qtype models.DNSRecordType) (hijackRow, error) {
+func (s *store) findHijacks(ctx context.Context, qtype models.DNSRecordType) ([]hijackRow, error) {
 	const query = `
 SELECT
   id,
@@ -165,46 +165,47 @@ SELECT
   COALESCE(forward_zone_id::text, '') AS forward_zone_id,
   ttl
 FROM hijacks
-WHERE record_type = $2
-  AND (
-    name = $1
-    OR $1 LIKE '%' || '.' || name
-  )
-ORDER BY CHAR_LENGTH(name) DESC
-LIMIT 1;
-`
+WHERE record_type = $1;`
 
-	var h hijackRow
-
-	err := s.db.QueryRowContext(ctx, query, qname, qtype).Scan(
-		&h.ID,
-		&h.Name,
-		&h.Value,
-		&h.Type,
-		&h.Policy,
-		&h.ForwardPolicy,
-		&h.ForwardZoneID,
-		&h.TTL,
-	)
+	rows, err := s.db.QueryContext(ctx, query, qtype)
 	if err != nil {
-		return hijackRow{}, err
+		return nil, err
+	}
+	defer rows.Close()
+
+	hijacks := make([]hijackRow, 0)
+	for rows.Next() {
+		var h hijackRow
+		if err := rows.Scan(
+			&h.ID,
+			&h.Name,
+			&h.Value,
+			&h.Type,
+			&h.Policy,
+			&h.ForwardPolicy,
+			&h.ForwardZoneID,
+			&h.TTL,
+		); err != nil {
+			return nil, err
+		}
+		hijacks = append(hijacks, h)
 	}
 
-	return h, nil
+	return hijacks, rows.Err()
 }
 
-func (s *store) lookupHijack(ctx context.Context, qname string, qtype models.DNSRecordType) (hijackRow, bool) {
-	h, err := s.findHijack(ctx, qname, qtype)
+func (s *store) lookupHijacks(ctx context.Context, qtype models.DNSRecordType) ([]hijackRow, bool) {
+	hijacks, err := s.findHijacks(ctx, qtype)
 	if err != nil {
 		if isNoRows(err) {
-			return hijackRow{}, false
+			return nil, false
 		}
 
-		s.logger.Error("hijack lookup failed", "error", err, "name", qname, "type", qtype)
-		return hijackRow{}, false
+		s.logger.Error("hijacks lookup failed", "error", err, "type", qtype)
+		return nil, false
 	}
 
-	return h, true
+	return hijacks, true
 }
 
 func isNoRows(err error) bool {

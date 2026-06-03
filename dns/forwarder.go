@@ -41,7 +41,7 @@ func (h *handler) forward(
 
 	span.SetAttributes(attribute.String("forward_zone_id", forwardZoneID))
 
-	fz, err := h.store.findForwardZone(
+	fz, err := h.dnsStore.findForwardZone(
 		ctx,
 		forwardZoneID,
 	)

@@ -50,7 +50,7 @@ func Serve(ctx context.Context, app *runtime.App, bus pubsub.Bus, opts ...Server
 	}
 
 	h := &handler{
-		store:      store,
+		dnsStore:   store,
 		logger:     app.Logger,
 		tracer:     tr,
 		cache:      c,
