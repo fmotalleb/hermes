@@ -13,28 +13,28 @@ type mockHijackStore struct {
 	hijacks map[models.DNSRecordType][]hijackRow
 }
 
-func (m *mockHijackStore) findZone(ctx context.Context, qname string) (zoneRow, error) {
-	return zoneRow{}, nil
-}
-
-func (m *mockHijackStore) loadSettings(ctx context.Context) (settingsRow, error) {
-	return settingsRow{}, nil
-}
-
-func (m *mockHijackStore) findForwardZone(ctx context.Context, id string) (forwardZoneRow, error) {
-	return forwardZoneRow{}, nil
-}
-
-func (m *mockHijackStore) recordsForZone(ctx context.Context, zoneID string) ([]record, error) {
-	return nil, nil
-}
-
 func (m *mockHijackStore) lookupHijacks(_ context.Context, qtype models.DNSRecordType) ([]hijackRow, bool) {
 	hrs, ok := m.hijacks[qtype]
 	return hrs, ok
 }
 
-func TestHijackGlobMatching(t *testing.T) {
+func (m *mockHijackStore) findZone(ctx context.Context, qname string) (zoneRow, error) {
+	panic("not implemented") // TODO: Implement
+}
+
+func (m *mockHijackStore) loadSettings(ctx context.Context) (settingsRow, error) {
+	panic("not implemented") // TODO: Implement
+}
+
+func (m *mockHijackStore) findForwardZone(ctx context.Context, id string) (forwardZoneRow, error) {
+	panic("not implemented") // TODO: Implement
+}
+
+func (m *mockHijackStore) recordsForZone(ctx context.Context, zoneID string) ([]record, error) {
+	panic("not implemented") // TODO: Implement
+}
+
+func TestHijackGlobMatching(test3 *testing.T) {
 	mockStore := &mockHijackStore{
 		hijacks: map[models.DNSRecordType][]hijackRow{
 			models.A: {
@@ -93,15 +93,14 @@ func TestHijackGlobMatching(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t := tt
-		t.Run(t.Name(), func(t *testing.T) {
-			msg, ok := h.hijack(context.Background(), t.qname, t.qtype, new(dns.Msg))
-			if ok != t.expectedOK {
-				t.Fatalf("expected ok %v, got %v", t.expectedOK, ok)
+	for _, tc := range tests {
+		test3.Run(tc.name, func(t *testing.T) {
+			msg, ok := h.hijack(context.Background(), tc.qname, tc.qtype, new(dns.Msg))
+			if ok != tc.expectedOK {
+				t.Fatalf("expected ok %v, got %v", tc.expectedOK, ok)
 			}
 
-			if t.expectedOK {
+			if tc.expectedOK {
 				if len(msg.Answer) == 0 {
 					t.Fatalf("expected an answer, got none")
 				}
@@ -109,8 +108,8 @@ func TestHijackGlobMatching(t *testing.T) {
 				if !ok {
 					t.Fatalf("expected A record, got %T", msg.Answer[0])
 				}
-				if a.A.String() != t.expectedVal {
-					t.Fatalf("expected value %s, got %s", t.expectedVal, a.A.String())
+				if a.A.String() != tc.expectedVal {
+					t.Fatalf("expected value %s, got %s", tc.expectedVal, a.A.String())
 				}
 			}
 		})
