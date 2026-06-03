@@ -6,8 +6,8 @@ import (
 
 	"github.com/fmotalleb/hermes/cache"
 	"github.com/fmotalleb/hermes/internal/pubsub"
+	"github.com/fmotalleb/hermes/internal/runtime"
 	"github.com/fmotalleb/hermes/internal/web"
-	"github.com/fmotalleb/hermes/queries"
 )
 
 const apiBasePath = "/api/"
@@ -20,8 +20,8 @@ type Migrator interface {
 	Run(context.Context) error
 }
 
-func Register(router *web.Router, db queries.DB, c cache.Cache, bus pubsub.Bus, migrator Migrator, metricsHandler http.Handler) {
-	handler := newHandler(newRepository(db, c, bus), migrator, metricsHandler, bus)
+func Register(router *web.Router, app *runtime.App, c cache.Cache, bus pubsub.Bus, migrator Migrator, metricsHandler http.Handler) {
+	handler := newHandler(newRepository(app.DB, c, bus, app.ServiceRegistry), migrator, metricsHandler, bus)
 
 	router.GET(apiRoute("zones"), handler.getZones)
 	router.GET(apiRoute("zones/{zone}"), handler.getZone)
@@ -47,6 +47,7 @@ func Register(router *web.Router, db queries.DB, c cache.Cache, bus pubsub.Bus, 
 
 	router.GET(apiRoute("settings"), handler.getSettings)
 	router.POST(apiRoute("settings"), handler.updateSettings)
+	router.GET(apiRoute("services/{kind}"), handler.getServices)
 	router.POST(apiRoute("pubsub/{topic}"), handler.publishEvent)
 	router.POST(apiRoute("migrations/run"), handler.runMigrations)
 	router.GET(apiRoute("metrics"), handler.metrics)

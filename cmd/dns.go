@@ -10,6 +10,7 @@ import (
 
 	"github.com/fmotalleb/hermes/dns"
 	"github.com/fmotalleb/hermes/internal/runtime"
+	"github.com/fmotalleb/hermes/registry"
 )
 
 var dnsCmd = &cobra.Command{
@@ -19,7 +20,7 @@ var dnsCmd = &cobra.Command{
 		ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
 		defer stop()
 
-		app, err := runtime.New(ctx, "dns", logger())
+		app, err := runtime.New(ctx, registry.ServiceKindDNS, logger())
 		if err != nil {
 			return err
 		}

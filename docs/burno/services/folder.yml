@@ -1,0 +1,10 @@
+info:
+  name: services
+  type: folder
+  seq: 8
+
+request:
+  auth: inherit
+  variables:
+    - name: base_url_services
+      value: "{{base_url}}/services"

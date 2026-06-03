@@ -14,6 +14,7 @@ import (
 	"github.com/fmotalleb/hermes/cache"
 	"github.com/fmotalleb/hermes/internal/pubsub"
 	"github.com/fmotalleb/hermes/internal/runtime"
+	"github.com/fmotalleb/hermes/registry"
 )
 
 func Serve(ctx context.Context, app *runtime.App, bus pubsub.Bus, opts ...ServerOption) error {
@@ -63,6 +64,10 @@ func Serve(ctx context.Context, app *runtime.App, bus pubsub.Bus, opts ...Server
 			return h.cache.Clear(ctx)
 		})
 	}()
+
+	go app.ServiceRegistry.OnDelete(ctx, app.Config.RedisDB, registry.ServiceKindProxy, func(_ string) {
+		h.cache.Clear(ctx)
+	})
 
 	group, groupCtx := errgroup.WithContext(ctx)
 

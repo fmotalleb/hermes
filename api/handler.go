@@ -412,3 +412,8 @@ func (h *handler) deleteHijack(ctx *web.Context) (any, error) {
 
 	return value, err
 }
+
+func (h *handler) getServices(ctx *web.Context) (any, error) {
+	kind := ctx.PathParam("kind")
+	return h.repo.getServices(ctx, kind)
+}

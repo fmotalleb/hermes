@@ -4,10 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
+)
+
+type ServiceKind = string
+
+const (
+	ServiceKindAPI      = ServiceKind("api")
+	ServiceKindProxy    = ServiceKind("proxy")
+	ServiceKindDNS      = ServiceKind("dns")
+	ServiceKindMigrator = ServiceKind("migrator")
 )
 
 type Entry struct {
@@ -43,8 +53,8 @@ func NewRegistryConnection(
 		kind:           kind,
 		metadata:       cloneMap(metadata),
 		key:            redisKey(kind, instanceID),
-		ttl:            30 * time.Second,
-		heartbeatEvery: 10 * time.Second,
+		ttl:            10 * time.Second,
+		heartbeatEvery: 5 * time.Second,
 	}
 }
 
@@ -200,4 +210,17 @@ func (c *RegistryConnection) ListKind(ctx context.Context, kind string) ([]Entry
 // ListSameKind returns all alive peers with the same kind as this instance.
 func (c *RegistryConnection) ListSameKind(ctx context.Context) ([]Entry, error) {
 	return c.ListKind(ctx, c.kind)
+}
+
+func (c *RegistryConnection) OnDelete(ctx context.Context, dbIndex int, kind ServiceKind, callback func(string)) error {
+	pubsub := c.redis.PSubscribe(
+		ctx,
+		fmt.Sprintf("__keyevent@%d__:expired", dbIndex),
+	)
+	for msg := range pubsub.Channel() {
+		if strings.HasPrefix(msg.Payload, fmt.Sprintf("registry:%s:", kind)) {
+			callback(msg.Payload)
+		}
+	}
+	return nil
 }

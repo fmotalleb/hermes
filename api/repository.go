@@ -13,19 +13,22 @@ import (
 	"github.com/fmotalleb/hermes/internal/pubsub"
 	"github.com/fmotalleb/hermes/models"
 	"github.com/fmotalleb/hermes/queries"
+	"github.com/fmotalleb/hermes/registry"
 )
 
 type repository struct {
-	db     queries.DB
-	cache  cache.Cache
-	pubsub pubsub.Bus
+	db       queries.DB
+	cache    cache.Cache
+	pubsub   pubsub.Bus
+	registry *registry.RegistryConnection
 }
 
-func newRepository(db queries.DB, cache cache.Cache, pubsubBus pubsub.Bus) *repository {
+func newRepository(db queries.DB, cache cache.Cache, pubsubBus pubsub.Bus, registry *registry.RegistryConnection) *repository {
 	return &repository{
-		db:     db,
-		cache:  cache,
-		pubsub: pubsubBus,
+		db:       db,
+		cache:    cache,
+		pubsub:   pubsubBus,
+		registry: registry,
 	}
 }
 
@@ -361,4 +364,8 @@ func (r *repository) deleteHijack(ctx context.Context, id string) (any, error) {
 
 	r.invalidateDNSCache(ctx)
 	return fmt.Sprintf("hijack successfully deleted with id: %s", id), nil
+}
+
+func (r *repository) getServices(ctx context.Context, kind string) (any, error) {
+	return r.registry.ListKind(ctx, kind)
 }

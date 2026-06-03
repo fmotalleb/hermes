@@ -10,10 +10,10 @@ http:
     type: json
     data: |-
       {
-        "name": "*.google.com",
+        "name": "*google.com",
         "value": "1.2.3.4",
         "type": "A",
-        "policy": "forward",
+        "policy": "raw",
         "forward_policy": "custom",
         "forward_zone_id": "019e8bd1-6e17-7904-ad2b-8297cc2a0eb5",
         "ttl": 300

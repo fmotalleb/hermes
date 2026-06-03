@@ -15,6 +15,7 @@ import (
 	"github.com/fmotalleb/hermes/internal/runtime"
 	"github.com/fmotalleb/hermes/internal/web"
 	"github.com/fmotalleb/hermes/migrations"
+	"github.com/fmotalleb/hermes/registry"
 	"github.com/fmotalleb/hermes/static"
 )
 
@@ -25,7 +26,7 @@ var apiCmd = &cobra.Command{
 		ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
 		defer stop()
 
-		app, err := runtime.New(ctx, "api", logger())
+		app, err := runtime.New(ctx, registry.ServiceKindAPI, logger())
 		if err != nil {
 			return err
 		}
@@ -42,7 +43,7 @@ var apiCmd = &cobra.Command{
 
 		api.Register(
 			router,
-			app.DB,
+			app,
 			cache.NewRedisCache(app.Redis, "api"),
 			bus,
 			migrations.NewRunner(app.DB, app.Logger),

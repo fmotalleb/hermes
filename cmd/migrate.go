@@ -9,6 +9,7 @@ import (
 
 	"github.com/fmotalleb/hermes/internal/runtime"
 	"github.com/fmotalleb/hermes/migrations"
+	"github.com/fmotalleb/hermes/registry"
 )
 
 var migrateCmd = &cobra.Command{
@@ -18,7 +19,7 @@ var migrateCmd = &cobra.Command{
 		ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
 		defer stop()
 
-		app, err := runtime.New(ctx, "migrator", logger())
+		app, err := runtime.New(ctx, registry.ServiceKindMigrator, logger())
 		if err != nil {
 			return err
 		}

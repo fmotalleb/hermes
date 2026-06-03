@@ -46,7 +46,7 @@ type App struct {
 	httpServer    *http.Server
 	metricsServer *http.Server
 
-	serviceRegistry *registry.RegistryConnection
+	ServiceRegistry *registry.RegistryConnection
 }
 
 func New(ctx context.Context, kind string, logger *slog.Logger) (*App, error) {
@@ -128,7 +128,7 @@ func New(ctx context.Context, kind string, logger *slog.Logger) (*App, error) {
 		TraceProvider:   traceProvider,
 		MeterProvider:   meterProvider,
 		MetricsHandler:  metricsHandler,
-		serviceRegistry: serviceRegistry,
+		ServiceRegistry: serviceRegistry,
 	}, nil
 }
 
