@@ -9,7 +9,7 @@ import (
 )
 
 func TestSelectBestRecordSetPrefersExactMatchOverGlob(t *testing.T) {
-	records := []recordRow{
+	records := []record{
 		{Name: "www", Type: models.A, Value: "192.0.2.10", TTL: 300},
 		{Name: "*.example.com", Type: models.A, Value: "192.0.2.20", TTL: 300},
 	}
@@ -24,7 +24,7 @@ func TestSelectBestRecordSetPrefersExactMatchOverGlob(t *testing.T) {
 }
 
 func TestSelectBestRecordSetPrefersMoreSpecificGlob(t *testing.T) {
-	records := []recordRow{
+	records := []record{
 		{Name: "*.example.com", Type: models.A, Value: "192.0.2.10", TTL: 300},
 		{Name: "*.bar", Type: models.A, Value: "192.0.2.20", TTL: 300},
 	}
@@ -39,7 +39,7 @@ func TestSelectBestRecordSetPrefersMoreSpecificGlob(t *testing.T) {
 }
 
 func TestSelectBestRecordSetPrefersCNAMEWhenPresent(t *testing.T) {
-	records := []recordRow{
+	records := []record{
 		{Name: "www", Type: models.A, Value: "192.0.2.10", TTL: 300},
 		{Name: "www", Type: models.CNAME, Value: "alias.example.net", TTL: 300},
 	}
@@ -57,7 +57,7 @@ func TestRecordToRRUsesSRVPriorityField(t *testing.T) {
 	rr, ok := recordToRR(
 		"example.com",
 		"_sip._tcp.example.com",
-		recordRow{
+		record{
 			Name:     "_sip._tcp",
 			Type:     models.SRV,
 			Value:    "10 5060 sip.example.com",

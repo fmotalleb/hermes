@@ -33,7 +33,7 @@ type forwardZoneRow struct {
 	Addresses []models.ForwardAddress
 }
 
-type recordRow struct {
+type record struct {
 	Name     string
 	Type     models.DNSRecordType
 	Value    string
@@ -124,7 +124,7 @@ WHERE id = $1;`
 	return zone, nil
 }
 
-func (s *store) recordsForZone(ctx context.Context, zoneID string) ([]recordRow, error) {
+func (s *store) recordsForZone(ctx context.Context, zoneID string) ([]record, error) {
 	const query = `
 SELECT
   name,
@@ -141,9 +141,9 @@ WHERE zone_id = $1;`
 	}
 	defer rows.Close()
 
-	records := make([]recordRow, 0)
+	records := make([]record, 0)
 	for rows.Next() {
-		var r recordRow
+		var r record
 		if err := rows.Scan(&r.Name, &r.Type, &r.Value, &r.TTL, &r.Priority); err != nil {
 			return nil, err
 		}
@@ -161,7 +161,7 @@ SELECT
   value,
   record_type,
   policy,
-  COALESCE(forward_policy, '') AS forward_policy,
+  COALESCE(forward_policy::text, '') AS forward_policy,
   COALESCE(forward_zone_id::text, '') AS forward_zone_id,
   ttl
 FROM hijacks

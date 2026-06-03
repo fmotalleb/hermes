@@ -19,23 +19,23 @@ type patternScore struct {
 
 type recordGroup struct {
 	score   patternScore
-	records []recordRow
+	records []record
 }
 
-func buildAnswers(zoneName, qname string, qtype uint16, records []recordRow) []dns.RR {
+func buildAnswers(zoneName, qname string, qtype uint16, records []record) []dns.RR {
 	matches := selectBestRecordSet(zoneName, qname, qtype, records)
 	if len(matches) == 0 {
 		return nil
 	}
 
 	if cname := firstRecordOfType(matches, models.CNAME); cname != nil {
-		return convertRecords(zoneName, qname, []recordRow{*cname})
+		return convertRecords(zoneName, qname, []record{*cname})
 	}
 
 	return convertRecords(zoneName, qname, matches)
 }
 
-func selectBestRecordSet(zoneName, qname string, qtype uint16, records []recordRow) []recordRow {
+func selectBestRecordSet(zoneName, qname string, qtype uint16, records []record) []record {
 	zoneName = normalizeDNSName(zoneName)
 	qname = normalizeDNSName(qname)
 
@@ -110,7 +110,7 @@ func moreSpecific(a, b patternScore) bool {
 	return a.pattern < b.pattern
 }
 
-func convertRecords(zoneName, qname string, records []recordRow) []dns.RR {
+func convertRecords(zoneName, qname string, records []record) []dns.RR {
 	answers := make([]dns.RR, 0, len(records))
 	for _, r := range records {
 		rr, ok := recordToRR(zoneName, qname, r)
@@ -123,7 +123,7 @@ func convertRecords(zoneName, qname string, records []recordRow) []dns.RR {
 	return answers
 }
 
-func firstRecordOfType(records []recordRow, typ models.DNSRecordType) *recordRow {
+func firstRecordOfType(records []record, typ models.DNSRecordType) *record {
 	for i := range records {
 		if records[i].Type == typ {
 			return &records[i]

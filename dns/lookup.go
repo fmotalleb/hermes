@@ -2,7 +2,6 @@ package dns
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 
@@ -82,25 +81,18 @@ func (h *handler) lookup(ctx context.Context, qname string, qtype uint16, req *d
 	ctx, span := otel.Tracer("dns").Start(ctx, "dns.lookup")
 	defer span.End()
 
-	// TODO Work in progress left open, need to handle proxy mode, and forward mode separately
-	if h, ok := h.store.lookupHijack(ctx, qname, models.DNSRecordType(dns.TypeToString[qtype])); ok {
-		switch h.Policy {
-		case models.HijackPolicyBlock:
-			return nil, errors.New("blocked by hijack")
-		case models.HijackPolicyRaw:
-			return h.Value, nil
-		case models.HijackPolicyProxy:
-			// proxy logic
-			return s.resolveForwarded(ctx, h, qname, qtype)
-		case models.HijackPolicyForward:
-			// forward logic here (depends on forward zone)
-			return s.resolveForwarded(ctx, h, qname, qtype)
-		}
-	}
 	span.SetAttributes(
 		attribute.String("query.name", qname),
 		attribute.Int("query.type", int(qtype)),
 	)
+
+	// TODO Work in progress left open, need to handle proxy mode, and forward mode separately
+	result, ok := h.hijack(ctx, qname, qtype, req)
+	if ok {
+		span.SetAttributes(attribute.Bool("query.hijacked", true))
+		span.AddEvent("query hijacked")
+		return result, nil
+	}
 
 	qname = normalizeDNSName(qname)
 	span.SetAttributes(attribute.String("query.normalized_name", qname))
@@ -189,4 +181,41 @@ func (h *handler) lookup(ctx context.Context, qname string, qtype uint16, req *d
 	msg.Authoritative = true
 	msg.RecursionAvailable = false
 	return msg, nil
+}
+
+func (h *handler) hijack(ctx context.Context, qname string, qtype uint16, req *dns.Msg) (*dns.Msg, bool) {
+	if hr, ok := h.store.lookupHijack(ctx, qname, models.DNSRecordType(dns.TypeToString[qtype])); ok {
+		switch hr.Policy {
+		case models.HijackPolicyBlock:
+			msg := new(dns.Msg)
+			msg.SetReply(req)
+			msg.Answer = []dns.RR{
+				&dns.NXNAME{},
+			}
+			return msg, true
+		case models.HijackPolicyRaw:
+			msg := new(dns.Msg)
+			msg.SetReply(req)
+			msg.Answer = []dns.RR{
+				&dns.NXNAME{},
+			}
+			msg.Answer = convertRecords(qname, qname, []record{
+				{
+					Name:     qname,
+					Type:     hr.Type,
+					Value:    hr.Value,
+					TTL:      hr.TTL,
+					Priority: 0,
+				},
+			})
+			return msg, true
+		case models.HijackPolicyProxy:
+			// TODO: proxy logic implementation
+			panic("unhandled state")
+		case models.HijackPolicyForward:
+			ans, _ := h.forward(ctx, req, *hr.ForwardZoneID)
+			return ans, true
+		}
+	}
+	return nil, false
 }

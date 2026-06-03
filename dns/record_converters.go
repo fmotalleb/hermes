@@ -11,7 +11,7 @@ import (
 	"github.com/fmotalleb/hermes/models"
 )
 
-func recordToRR(zoneName, qname string, r recordRow) (dns.RR, bool) {
+func recordToRR(zoneName, qname string, r record) (dns.RR, bool) {
 	owner := ownerName(zoneName, qname, r.Name)
 	ttl := r.TTL
 	if ttl == 0 {
@@ -72,7 +72,7 @@ func recordToRR(zoneName, qname string, r recordRow) (dns.RR, bool) {
 	}
 }
 
-func parseTLSA(hdr dns.RR_Header, r recordRow) (dns.RR, bool) {
+func parseTLSA(hdr dns.RR_Header, r record) (dns.RR, bool) {
 	parts := strings.Fields(r.Value)
 	if len(parts) != 4 {
 		return nil, false
@@ -112,7 +112,7 @@ func parseCAA(hdr dns.RR_Header, value string) (dns.RR, bool) {
 	return &dns.CAA{Hdr: hdr, Flag: uint8(flags), Tag: tag, Value: data}, true
 }
 
-func parseSOA(hdr dns.RR_Header, zoneName string, r recordRow) (dns.RR, bool) {
+func parseSOA(hdr dns.RR_Header, zoneName string, r record) (dns.RR, bool) {
 	parts := strings.Fields(r.Value)
 	if len(parts) >= 7 {
 		serial, err1 := strconv.ParseUint(parts[2], 10, 32)
@@ -152,7 +152,7 @@ func parseSOA(hdr dns.RR_Header, zoneName string, r recordRow) (dns.RR, bool) {
 	}, true
 }
 
-func parseSRV(hdr dns.RR_Header, r recordRow) (dns.RR, bool) {
+func parseSRV(hdr dns.RR_Header, r record) (dns.RR, bool) {
 	parts := strings.Fields(r.Value)
 	if len(parts) < 3 {
 		return nil, false

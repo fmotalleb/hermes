@@ -6,7 +6,7 @@ info:
 request:
   auth: inherit
   variables:
-    - name: base_url_zones
-      value: "{{base_url}}/zones"
+    - name: base_url_hijacks
+      value: "{{base_url}}/hijacks"
     - name: hijack_id
       value: 019e8780-313e-7b6f-aff1-900828c392fd
