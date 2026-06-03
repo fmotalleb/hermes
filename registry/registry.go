@@ -14,7 +14,7 @@ type Entry struct {
 	ID       string         `json:"id"`
 	Kind     string         `json:"kind"`
 	Metadata map[string]any `json:"metadata"`
-	LastSeen int64          `json:"lastSeen"`
+	LastSeen time.Time      `json:"lastSeen"`
 }
 
 type RegistryConnection struct {
@@ -100,7 +100,7 @@ func (c *RegistryConnection) checkIn(ctx context.Context) error {
 		ID:       c.instanceID,
 		Kind:     c.kind,
 		Metadata: cloneMap(c.metadata),
-		LastSeen: time.Now().UnixMilli(),
+		LastSeen: time.Now(),
 	}
 	c.mu.RUnlock()
 
