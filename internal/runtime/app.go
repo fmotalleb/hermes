@@ -28,6 +28,8 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/fmotalleb/hermes/registry"
 )
 
 type App struct {
@@ -43,9 +45,11 @@ type App struct {
 
 	httpServer    *http.Server
 	metricsServer *http.Server
+
+	serviceRegistry *registry.RegistryConnection
 }
 
-func New(ctx context.Context, logger *slog.Logger) (*App, error) {
+func New(ctx context.Context, kind string, logger *slog.Logger) (*App, error) {
 	var id uuid.UUID
 	var err error
 	if id, err = uuid.NewV7(); err != nil {
@@ -109,15 +113,22 @@ func New(ctx context.Context, logger *slog.Logger) (*App, error) {
 			propagation.Baggage{},      // optional: baggage propagation
 		),
 	)
+
+	// TODO: add retry mechanism
+	serviceRegistry := registry.NewRegistryConnection(redisClient, id.String(), kind, map[string]any{})
+	if err := serviceRegistry.Start(ctx); err != nil {
+		logger.Error("registry advertise failed")
+	}
 	return &App{
-		id:             id,
-		Config:         cfg,
-		Logger:         logger,
-		DB:             db,
-		Redis:          redisClient,
-		TraceProvider:  traceProvider,
-		MeterProvider:  meterProvider,
-		MetricsHandler: metricsHandler,
+		id:              id,
+		Config:          cfg,
+		Logger:          logger,
+		DB:              db,
+		Redis:           redisClient,
+		TraceProvider:   traceProvider,
+		MeterProvider:   meterProvider,
+		MetricsHandler:  metricsHandler,
+		serviceRegistry: serviceRegistry,
 	}, nil
 }
 

@@ -25,7 +25,7 @@ var apiCmd = &cobra.Command{
 		ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
 		defer stop()
 
-		app, err := runtime.New(ctx, logger())
+		app, err := runtime.New(ctx, "api", logger())
 		if err != nil {
 			return err
 		}

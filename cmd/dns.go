@@ -19,7 +19,7 @@ var dnsCmd = &cobra.Command{
 		ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
 		defer stop()
 
-		app, err := runtime.New(ctx, logger())
+		app, err := runtime.New(ctx, "dns", logger())
 		if err != nil {
 			return err
 		}
