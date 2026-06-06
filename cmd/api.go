@@ -41,6 +41,7 @@ var apiCmd = &cobra.Command{
 		router := web.NewRouter()
 		router.Use(auth.Middleware(app.Config))
 
+		// TODO: read from env
 		router.AllowCors(
 			web.WithOrigins("*"),
 		)
