@@ -58,43 +58,44 @@ func Serve(ctx context.Context, app *runtime.App, bus pubsub.Bus, opts ...Server
 		cacheTypes: cacheTypes,
 	}
 
-	go func() {
-		_ = bus.Subscribe(ctx, DNSCacheInvalidTopic, func(_ context.Context, _ []byte) error {
+	eg, groupCtx := errgroup.WithContext(ctx)
+
+	eg.Go(func() error {
+		return bus.Subscribe(ctx, DNSCacheInvalidTopic, func(_ context.Context, _ []byte) error {
 			app.Logger.Info("received invalidation notice", slog.String("id", app.ID().String()))
 			return h.cache.Clear(ctx)
 		})
-	}()
-
-	go app.ServiceRegistry.OnDelete(ctx, app.Config.RedisDB, registry.ServiceKindProxy, func(_ string) {
-		h.cache.Clear(ctx)
 	})
-
-	group, groupCtx := errgroup.WithContext(ctx)
+	eg.Go(func() error {
+		return app.ServiceRegistry.OnDelete(ctx, app.Config.RedisDB, registry.ServiceKindProxy, func(_ string) {
+			h.cache.Clear(ctx)
+		})
+	})
 
 	switch cfg.protocol {
 	case ProtocolUDP:
-		serveUDP(group, groupCtx, cfg, h)
+		serveUDP(eg, groupCtx, cfg, h)
 	case ProtocolTCP:
-		serveTCP(group, groupCtx, cfg, h)
+		serveTCP(eg, groupCtx, cfg, h)
 	case ProtocolBoth:
-		serveUDP(group, groupCtx, cfg, h)
-		serveTCP(group, groupCtx, cfg, h)
+		serveUDP(eg, groupCtx, cfg, h)
+		serveTCP(eg, groupCtx, cfg, h)
 	case ProtocolTLS:
 		if cfg.tlsConfig == nil {
 			return fmt.Errorf("ProtocolTLS requires TLS configuration (use WithTLSFiles or WithTLSConfig)")
 		}
-		serveTLS(group, groupCtx, cfg, h)
+		serveTLS(eg, groupCtx, cfg, h)
 	case ProtocolHTTPS:
 		if cfg.tlsConfig == nil {
 			return fmt.Errorf("ProtocolHTTPS requires TLS configuration (use WithTLSFiles or WithTLSConfig)")
 		}
-		serveDoH(group, groupCtx, cfg, h)
+		serveDoH(eg, groupCtx, cfg, h)
 	default:
 		return fmt.Errorf("unknown protocol: %d", cfg.protocol)
 	}
 
 	app.Logger.Info("dns server started", "addr", cfg.listenAddr, "protocol", cfg.protocol)
-	return group.Wait()
+	return eg.Wait()
 }
 
 func serveUDP(g *errgroup.Group, ctx interface{ Done() <-chan struct{} }, cfg *ServerConfig, h dns.Handler) {
