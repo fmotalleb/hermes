@@ -82,7 +82,7 @@ SET
   policy = $4,
   forward_policy = $5,
   forward_zone_id = CASE
-    WHEN $4 = 'proxy'::hijack_policy
+    WHEN $4 = 'forward'::hijack_policy
     THEN NULLIF($6::text, '')::uuid
     ELSE NULL
   END,
