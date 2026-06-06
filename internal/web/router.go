@@ -9,8 +9,10 @@ import (
 	"strings"
 )
 
-type HandlerFunc func(*Context) (any, error)
-type Middleware func(http.Handler) http.Handler
+type (
+	HandlerFunc func(*Context) (any, error)
+	Middleware  func(http.Handler) http.Handler
+)
 
 type Router struct {
 	routes       []route
@@ -56,6 +58,9 @@ func (r *Router) Use(middlewares ...Middleware) {
 }
 
 func (r *Router) Handle(method, pattern string, handler HandlerFunc) {
+	if method != http.MethodOptions {
+		r.OPTIONS(pattern, nil)
+	}
 	r.routes = append(r.routes, route{
 		method:  strings.ToUpper(method),
 		pattern: pattern,
@@ -74,6 +79,10 @@ func (r *Router) POST(pattern string, handler HandlerFunc) {
 
 func (r *Router) DELETE(pattern string, handler HandlerFunc) {
 	r.Handle(http.MethodDelete, pattern, handler)
+}
+
+func (r *Router) OPTIONS(pattern string, handler HandlerFunc) {
+	r.Handle(http.MethodOptions, pattern, handler)
 }
 
 func (r *Router) Group(prefix string, fn func(*Router)) {
