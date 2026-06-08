@@ -27,7 +27,7 @@ func serveDoH(g *errgroup.Group, ctx interface{ Done() <-chan struct{} }, cfg *S
 		return httpSrv.Close()
 	})
 	g.Go(func() error {
-		if err := httpSrv.ListenAndServeTLS(cfg.certFile, cfg.keyFile); !errors.Is(err, http.ErrServerClosed) {
+		if err := httpSrv.ListenAndServeTLS("", ""); !errors.Is(err, http.ErrServerClosed) {
 			return err
 		}
 		return nil
