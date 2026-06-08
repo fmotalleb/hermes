@@ -3,6 +3,7 @@ package dns
 import (
 	"context"
 	"log/slog"
+	"net"
 	"slices"
 
 	"go.opentelemetry.io/otel/trace"
@@ -19,6 +20,7 @@ type dnsStore interface {
 	findForwardZone(ctx context.Context, id string) (forwardZoneRow, error)
 	recordsForZone(ctx context.Context, zoneID string) ([]record, error)
 	lookupHijacks(ctx context.Context, qtype models.DNSRecordType) ([]hijackRow, bool)
+	getProxyServices(ctx context.Context) ([]net.IPAddr, error)
 }
 
 type handler struct {

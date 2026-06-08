@@ -7,6 +7,7 @@ import (
 	"github.com/miekg/dns"
 
 	"github.com/fmotalleb/hermes/models"
+	"github.com/fmotalleb/hermes/registry"
 )
 
 type mockHijackStore struct {
@@ -32,6 +33,9 @@ func (m *mockHijackStore) findForwardZone(ctx context.Context, id string) (forwa
 
 func (m *mockHijackStore) recordsForZone(ctx context.Context, zoneID string) ([]record, error) {
 	panic("not implemented") // TODO: Implement
+}
+
+func (s *store) getProxyServices(ctx context.Context) ([]registry.Entry, error) {
 }
 
 func TestHijackGlobMatching(test3 *testing.T) {

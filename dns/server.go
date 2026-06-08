@@ -25,7 +25,11 @@ func Serve(ctx context.Context, app *runtime.App, bus pubsub.Bus, opts ...Server
 		}
 	}
 
-	store := &store{db: app.DB, logger: app.Logger}
+	store := &store{
+		db:       app.DB,
+		logger:   app.Logger,
+		registry: app.ServiceRegistry,
+	}
 	tr := otel.GetTracerProvider().Tracer("dns-server")
 
 	var c cache.Cache
