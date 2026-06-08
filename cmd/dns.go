@@ -31,15 +31,30 @@ var dnsCmd = &cobra.Command{
 			return err
 		}
 		defer bus.Close()
+
+		dnsOpts := make([]dns.ServerOption, 0)
+		dnsOpts = append(dnsOpts, dns.WithListenAddr(app.Config.DNSListenAddr))
+		if proto, err := dns.ProtocolFromStr(app.Config.DNSProtocol); err != nil {
+			return err
+		} else {
+			dnsOpts = append(dnsOpts, dns.WithProtocol(proto))
+		}
+		if app.Config.DNSTLSCertificateFile != "" && app.Config.DNSTLSPrivateKeyFile != "" {
+			dnsOpts = append(
+				dnsOpts,
+				dns.WithTLSFiles(
+					app.Config.DNSTLSCertificateFile,
+					app.Config.DNSTLSPrivateKeyFile,
+				),
+			)
+		}
+
 		eg, ctx := errgroup.WithContext(ctx)
 		eg.Go(func() error {
 			return app.StartMetricsServer(ctx, app.MetricsHandler)
 		})
 		eg.Go(func() error {
-			return dns.Serve(ctx, app, bus,
-				dns.WithListenAddr(app.Config.DNSListenAddr),
-				dns.WithProtocol(dns.ProtocolUDP),
-			)
+			return dns.Serve(ctx, app, bus, dnsOpts...)
 		})
 		return eg.Wait()
 	},

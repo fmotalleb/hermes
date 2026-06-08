@@ -11,29 +11,31 @@ import (
 )
 
 type Config struct {
-	InstanceName        string
-	HTTPPort            int
-	MetricsPort         int
-	AdminNoAuth         bool
-	AdminUser           string
-	AdminPass           string
-	DBDsn               string
-	DBMaxIdle           int
-	DBMaxOpen           int
-	RedisAddr           string
-	RedisDB             int
-	RedisPubSubDB       int
-	PubSubBrokers       string
-	PubSubRabbitMQURI   string
-	PubSubConsumerGroup string
-	TraceExporter       string
-	TracerURL           string
-	TracerRatio         float64
-	PubSubBackend       string
-	DNSCacheBackend     string
-	DNSCacheTypes       []string
-	DNSListenAddr       string
-	DNSProtocol         string
+	InstanceName          string
+	HTTPPort              int
+	MetricsPort           int
+	AdminNoAuth           bool
+	AdminUser             string
+	AdminPass             string
+	DBDsn                 string
+	DBMaxIdle             int
+	DBMaxOpen             int
+	RedisAddr             string
+	RedisDB               int
+	RedisPubSubDB         int
+	PubSubBrokers         string
+	PubSubRabbitMQURI     string
+	PubSubConsumerGroup   string
+	TraceExporter         string
+	TracerURL             string
+	TracerRatio           float64
+	PubSubBackend         string
+	DNSCacheBackend       string
+	DNSCacheTypes         []string
+	DNSListenAddr         string
+	DNSProtocol           string
+	DNSTLSCertificateFile string
+	DNSTLSPrivateKeyFile  string
 }
 
 func LoadConfig() Config {
@@ -77,6 +79,9 @@ func LoadConfig() Config {
 		DNSCacheTypes:   env.SliceOr("DNS_CACHE_TYPES", []string{"A", "AAAA", "CNAME"}),
 		DNSListenAddr:   env.Or("DNS_LISTEN_ADDR", ":53"),
 		DNSProtocol:     env.Or("DNS_PROTOCOL", "udp"),
+
+		DNSTLSCertificateFile: env.Or("DNS_TLS_CERTIFICATE", ""),
+		DNSTLSPrivateKeyFile:  env.Or("DNS_TLS_PRIVATE_KEY", ""),
 	}
 }
 

@@ -3,6 +3,7 @@ package dns
 import (
 	"crypto/tls"
 	"fmt"
+	"strings"
 )
 
 const defaultListenAddr = "0.0.0.0:8053"
@@ -17,6 +18,40 @@ const (
 	ProtocolTLS                   // DNS-over-TLS (DoT)
 	ProtocolHTTPS                 // DNS-over-HTTPS (DoH)
 )
+
+func (p Protocol) String() string {
+	switch p {
+	case ProtocolUDP:
+		return "udp"
+	case ProtocolTCP:
+		return "tcp"
+	case ProtocolTLS:
+		return "tls"
+	case ProtocolBoth:
+		return "udp+tcp"
+	case ProtocolHTTPS:
+		return "doh"
+	default:
+		return ""
+	}
+}
+
+func ProtocolFromStr(protoStr string) (Protocol, error) {
+	switch strings.ToLower(protoStr) {
+	case "udp":
+		return ProtocolUDP, nil
+	case "tcp":
+		return ProtocolTCP, nil
+	case "both", "udp+tcp", "tcp+udp", "":
+		return ProtocolBoth, nil
+	case "tls":
+		return ProtocolTLS, nil
+	case "doh", "https":
+		return ProtocolHTTPS, nil
+	default:
+		return 0, fmt.Errorf("invalid dns protocol: %s", protoStr)
+	}
+}
 
 // ServerConfig holds all configuration for the DNS server listener.
 type ServerConfig struct {
@@ -76,7 +111,6 @@ func WithTLSFiles(certFile, keyFile string) ServerOption {
 			Certificates: []tls.Certificate{cert},
 			MinVersion:   tls.VersionTLS12,
 		}
-		c.protocol = ProtocolTLS
 		return nil
 	}
 }

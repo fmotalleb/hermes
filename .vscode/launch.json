@@ -50,6 +50,25 @@
             "args": [
                 "dns"
             ]
+        },
+        {
+            "name": "DNS Server DOH",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}",
+            "env": {
+                "INSTANCE_NAME":"dns.secondary",
+                "APP_ENV":"local",
+                "DNS_LISTEN_ADDR":":8443",
+                "DNS_PROTOCOL": "doh",
+                "DNS_TLS_PRIVATE_KEY":"${workspaceFolder}/certs/127.0.0.1.key",
+                "DNS_TLS_CERTIFICATE":"${workspaceFolder}/certs/127.0.0.1.crt",
+            },
+            "args": [
+                "dns"
+            ]
         }
     ]
 }
