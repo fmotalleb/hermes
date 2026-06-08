@@ -59,7 +59,7 @@
             "cwd": "${workspaceFolder}",
             "program": "${workspaceFolder}",
             "env": {
-                "INSTANCE_NAME":"dns.secondary",
+                "INSTANCE_NAME":"dns.doh",
                 "APP_ENV":"local",
                 "DNS_LISTEN_ADDR":":8443",
                 "DNS_PROTOCOL": "doh",
