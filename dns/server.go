@@ -67,12 +67,18 @@ func Serve(ctx context.Context, app *runtime.App, bus pubsub.Bus, opts ...Server
 	eg.Go(func() error {
 		return bus.Subscribe(ctx, DNSCacheInvalidTopic, func(_ context.Context, _ []byte) error {
 			app.Logger.Info("received invalidation notice", slog.String("id", app.ID().String()))
-			return h.cache.Clear(ctx)
+			if err := h.cache.Clear(ctx); err != nil {
+				app.Logger.Warn("failed to invalidate cache", slog.String("err", err.Error()))
+			}
+			return nil
 		})
 	})
 	eg.Go(func() error {
 		return app.ServiceRegistry.OnDelete(ctx, app.Config.RedisDB, registry.ServiceKindProxy, func(_ string) {
-			h.cache.Clear(ctx)
+			app.Logger.Info("received invalidation notice, proxy disconnected", slog.String("id", app.ID().String()))
+			if err := h.cache.Clear(ctx); err != nil {
+				app.Logger.Warn("failed to invalidate cache", slog.String("err", err.Error()))
+			}
 		})
 	})
 

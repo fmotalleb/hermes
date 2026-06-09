@@ -218,6 +218,7 @@ func (c *RegistryConnection) ListSameKind(ctx context.Context) ([]Entry, error) 
 func (c *RegistryConnection) OnDelete(ctx context.Context, dbIndex int, kind ServiceKind, callback func(string)) error {
 	pubsub := c.redis.PSubscribe(
 		ctx,
+		fmt.Sprintf("__keyevent@%d__:del", dbIndex),
 		fmt.Sprintf("__keyevent@%d__:expired", dbIndex),
 	)
 	for msg := range pubsub.Channel() {
