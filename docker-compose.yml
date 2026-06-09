@@ -17,7 +17,7 @@ services:
 
   redis:
     image: library/redis:8-alpine
-    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    command: ["redis-server", "--appendonly", "no", "--notify-keyspace-events", "Exg"]
     ports:
       - "6379:6379"
     healthcheck:
