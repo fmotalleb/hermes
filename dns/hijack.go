@@ -2,6 +2,7 @@ package dns
 
 import (
 	"context"
+	"net"
 	"path"
 	"strings"
 
@@ -43,14 +44,46 @@ func (h *handler) hijack(ctx context.Context, qname string, qtype uint16, req *d
 		})
 		return msg, true
 	case models.HijackPolicyProxy:
+		proxies, err := h.getProxyServices(ctx)
+		msg := new(dns.Msg)
+		msg.SetReply(req)
+		if err != nil {
+			msg.Answer = []dns.RR{
+				&dns.NXNAME{},
+			}
+			return msg, true
+		}
 
-		// TODO: proxy logic implementation
-		panic("unhandled state")
+		msg.Answer = convertRecords(qname, qname, convertProxiesToRecords(qname, hr, proxies))
+		return msg, true
+		// panic("unhandled state")
 	case models.HijackPolicyForward:
 		ans, _ := h.forward(ctx, req, *hr.ForwardZoneID)
 		return ans, true
 	}
 	return nil, false
+}
+
+func convertProxiesToRecords(qname string, hr hijackRow, addrs []net.IP) []record {
+	records := make([]record, 0)
+	for _, v := range addrs {
+		addrKind := addrKind(v)
+		if addrKind == nil {
+			continue
+		}
+		if *addrKind == hr.Type {
+			records = append(records,
+				record{
+					Name:     qname,
+					Type:     hr.Type,
+					Value:    v.String(),
+					TTL:      hr.TTL,
+					Priority: 0,
+				},
+			)
+		}
+	}
+	return records
 }
 
 func selectBestHijack(qname string, hijacks []hijackRow) (hijackRow, bool) {
@@ -117,4 +150,16 @@ func moreSpecificHijack(a, b hijackPatternScore) bool {
 		return a.length > b.length
 	}
 	return a.pattern < b.pattern
+}
+
+func addrKind(ip net.IP) *models.DNSRecordType {
+	switch {
+	case ip == nil:
+		return nil
+	case ip.To4() != nil:
+		return new(models.A)
+	case ip.To16() != nil:
+		return new(models.AAAA)
+	}
+	return nil
 }
