@@ -20,7 +20,7 @@ type dnsStore interface {
 	findForwardZone(ctx context.Context, id string) (forwardZoneRow, error)
 	recordsForZone(ctx context.Context, zoneID string) ([]record, error)
 	lookupHijacks(ctx context.Context, qtype models.DNSRecordType) ([]hijackRow, bool)
-	getProxyServices(ctx context.Context) ([]net.IPAddr, error)
+	getProxyServices(ctx context.Context) ([]net.IP, error)
 }
 
 type handler struct {

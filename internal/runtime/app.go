@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -116,7 +117,8 @@ func New(ctx context.Context, kind string, logger *slog.Logger) (*App, error) {
 
 	// TODO: add retry mechanism
 	serviceRegistry := registry.NewRegistryConnection(redisClient, id.String(), kind, map[string]any{})
-	if err := serviceRegistry.Start(ctx); err != nil {
+	instanceIP := net.ParseIP(cfg.InstanceAddr)
+	if err := serviceRegistry.Start(ctx, instanceIP); err != nil {
 		logger.Error("registry advertise failed")
 	}
 	return &App{

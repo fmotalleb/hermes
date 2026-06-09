@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +24,7 @@ const (
 type Entry struct {
 	ID       string         `json:"id"`
 	Kind     string         `json:"kind"`
+	IP       net.IP         `json:"ip_address"`
 	Metadata map[string]any `json:"metadata"`
 	LastSeen time.Time      `json:"lastSeen"`
 }
@@ -74,8 +76,8 @@ func cloneMap(src map[string]any) map[string]any {
 }
 
 // Start does an immediate check-in and then starts heartbeat in the background.
-func (c *RegistryConnection) Start(ctx context.Context) error {
-	if err := c.checkIn(ctx); err != nil {
+func (c *RegistryConnection) Start(ctx context.Context, addr net.IP) error {
+	if err := c.checkIn(ctx, addr); err != nil {
 		return err
 	}
 
@@ -96,7 +98,7 @@ func (c *RegistryConnection) Start(ctx context.Context) error {
 			case <-ticker.C:
 				// Simple: rewrite the full payload every heartbeat.
 				// If Redis is temporarily down, next tick will retry.
-				_ = c.checkIn(hbCtx)
+				_ = c.checkIn(hbCtx, addr)
 			}
 		}
 	}()
@@ -104,11 +106,12 @@ func (c *RegistryConnection) Start(ctx context.Context) error {
 	return nil
 }
 
-func (c *RegistryConnection) checkIn(ctx context.Context) error {
+func (c *RegistryConnection) checkIn(ctx context.Context, addr net.IP) error {
 	c.mu.RLock()
 	entry := Entry{
 		ID:       c.instanceID,
 		Kind:     c.kind,
+		IP:       addr,
 		Metadata: cloneMap(c.metadata),
 		LastSeen: time.Now(),
 	}

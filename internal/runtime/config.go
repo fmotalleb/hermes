@@ -12,6 +12,7 @@ import (
 
 type Config struct {
 	InstanceName          string
+	InstanceAddr          string
 	HTTPPort              int
 	MetricsPort           int
 	AdminNoAuth           bool
@@ -45,6 +46,7 @@ func LoadConfig() Config {
 	}
 	return Config{
 		InstanceName: env.Or("INSTANCE_NAME", "server"),
+		InstanceAddr: env.Or("INSTANCE_ADDRESS", "127.0.0.1"),
 		HTTPPort:     env.IntOr("HTTP_PORT", 8000),
 		MetricsPort:  env.IntOr("METRICS_PORT", 0),
 

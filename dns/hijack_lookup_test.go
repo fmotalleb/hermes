@@ -2,12 +2,12 @@ package dns
 
 import (
 	"context"
+	"net"
 	"testing"
 
 	"github.com/miekg/dns"
 
 	"github.com/fmotalleb/hermes/models"
-	"github.com/fmotalleb/hermes/registry"
 )
 
 type mockHijackStore struct {
@@ -35,7 +35,10 @@ func (m *mockHijackStore) recordsForZone(ctx context.Context, zoneID string) ([]
 	panic("not implemented") // TODO: Implement
 }
 
-func (s *store) getProxyServices(ctx context.Context) ([]registry.Entry, error) {
+func (s *mockHijackStore) getProxyServices(ctx context.Context) ([]net.IP, error) {
+	return []net.IP{
+		net.ParseIP("1.1.1.1"),
+	}, nil
 }
 
 func TestHijackGlobMatching(test3 *testing.T) {

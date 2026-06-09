@@ -211,21 +211,17 @@ func (s *store) lookupHijacks(ctx context.Context, qtype models.DNSRecordType) (
 	return hijacks, true
 }
 
-func (s *store) getProxyServices(ctx context.Context) ([]net.IPAddr, error) {
+func (s *store) getProxyServices(ctx context.Context) ([]net.IP, error) {
 	proxies, err := s.registry.ListKind(ctx, registry.ServiceKindProxy)
 	if err != nil {
 		return nil, err
 	}
-	if len(proxies) == 0 {
-		return nil, errors.New("no proxy service checked in, services should share same redis server/cluster and configuration")
-	}
-	return proxies, nil
-}
 
-func proxyServiceToEntry(re registry.Entry) (*net.IPAddr, error) {
-	if addr, ok := re.Metadata["address"]; !ok {
-		return nil, errors.New("proxy service metadata is corrupted, proxy services must have address field")
+	ips := make([]net.IP, len(proxies))
+	for i, v := range proxies {
+		ips[i] = v.IP
 	}
+	return ips, nil
 }
 
 func isNoRows(err error) bool {
