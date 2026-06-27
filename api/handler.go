@@ -7,9 +7,9 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/fmotalleb/hermes/internal/pubsub"
-	"github.com/fmotalleb/hermes/internal/web"
+	"github.com/fmotalleb/hermes/pubsub"
 	"github.com/fmotalleb/hermes/request"
+	"github.com/fmotalleb/hermes/web"
 )
 
 type handler struct {

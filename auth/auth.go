@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/fmotalleb/hermes/internal/runtime"
-	"github.com/fmotalleb/hermes/internal/web"
+	"github.com/fmotalleb/hermes/runtime"
+	"github.com/fmotalleb/hermes/web"
 )
 
 const (

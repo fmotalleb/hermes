@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/fmotalleb/hermes/internal/web"
+	"github.com/fmotalleb/hermes/web"
 )
 
 //go:embed *

@@ -11,32 +11,44 @@ import (
 )
 
 type Config struct {
-	InstanceName          string
-	InstanceAddr          string
-	HTTPPort              int
-	MetricsPort           int
-	AdminNoAuth           bool
-	AdminUser             string
-	AdminPass             string
-	DBDsn                 string
-	DBMaxIdle             int
-	DBMaxOpen             int
-	RedisAddr             string
-	RedisDB               int
-	RedisPubSubDB         int
-	PubSubBrokers         string
-	PubSubRabbitMQURI     string
-	PubSubConsumerGroup   string
-	TraceExporter         string
-	TracerURL             string
-	TracerRatio           float64
-	PubSubBackend         string
+	// Per instance configuration
+	InstanceName string
+	InstanceAddr string
+	MetricsPort  int
+
+	// API Service
+	HTTPPort    int
+	AdminNoAuth bool
+	AdminUser   string
+	AdminPass   string
+
+	// Global Configuration
+	DBDsn               string
+	DBMaxIdle           int
+	DBMaxOpen           int
+	RedisAddr           string
+	RedisDB             int
+	RedisPubSubDB       int
+	PubSubBrokers       string
+	PubSubRabbitMQURI   string
+	PubSubConsumerGroup string
+	TraceExporter       string
+	TracerURL           string
+	TracerRatio         float64
+	PubSubBackend       string
+
+	// DNS specific section
 	DNSCacheBackend       string
 	DNSCacheTypes         []string
 	DNSListenAddr         string
 	DNSProtocol           string
 	DNSTLSCertificateFile string
 	DNSTLSPrivateKeyFile  string
+
+	// Transparent Proxy Specific section
+	ProxyServerHTTPPorts []string
+	ProxyServerTLSPorts  []string
+	ProxyTunnelChain     string
 }
 
 func LoadConfig() Config {

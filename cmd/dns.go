@@ -9,8 +9,8 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/fmotalleb/hermes/dns"
-	"github.com/fmotalleb/hermes/internal/runtime"
 	"github.com/fmotalleb/hermes/registry"
+	"github.com/fmotalleb/hermes/runtime"
 )
 
 var dnsCmd = &cobra.Command{

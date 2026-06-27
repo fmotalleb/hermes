@@ -12,9 +12,9 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/fmotalleb/hermes/cache"
-	"github.com/fmotalleb/hermes/internal/pubsub"
-	"github.com/fmotalleb/hermes/internal/runtime"
+	"github.com/fmotalleb/hermes/pubsub"
 	"github.com/fmotalleb/hermes/registry"
+	"github.com/fmotalleb/hermes/runtime"
 )
 
 func Serve(ctx context.Context, app *runtime.App, bus pubsub.Bus, opts ...ServerOption) error {

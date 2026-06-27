@@ -12,11 +12,11 @@ import (
 	"github.com/fmotalleb/hermes/api"
 	"github.com/fmotalleb/hermes/auth"
 	"github.com/fmotalleb/hermes/cache"
-	"github.com/fmotalleb/hermes/internal/runtime"
-	"github.com/fmotalleb/hermes/internal/web"
 	"github.com/fmotalleb/hermes/migrations"
 	"github.com/fmotalleb/hermes/registry"
+	"github.com/fmotalleb/hermes/runtime"
 	"github.com/fmotalleb/hermes/static"
+	"github.com/fmotalleb/hermes/web"
 )
 
 var apiCmd = &cobra.Command{

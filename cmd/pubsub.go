@@ -6,8 +6,8 @@ import (
 
 	"github.com/ThreeDotsLabs/watermill"
 
-	"github.com/fmotalleb/hermes/internal/pubsub"
-	"github.com/fmotalleb/hermes/internal/runtime"
+	"github.com/fmotalleb/hermes/pubsub"
+	"github.com/fmotalleb/hermes/runtime"
 )
 
 func newPubSubBus(cfg runtime.Config, app *runtime.App) (pubsub.Bus, error) {

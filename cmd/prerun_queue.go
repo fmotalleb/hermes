@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/fmotalleb/hermes/internal/runtime"
 	"github.com/fmotalleb/hermes/migrations"
+	"github.com/fmotalleb/hermes/runtime"
 )
 
 const migrateFlag = "migrate"

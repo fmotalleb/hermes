@@ -10,8 +10,8 @@ import (
 
 	"github.com/fmotalleb/hermes/cache"
 	"github.com/fmotalleb/hermes/dns"
-	"github.com/fmotalleb/hermes/internal/pubsub"
 	"github.com/fmotalleb/hermes/models"
+	"github.com/fmotalleb/hermes/pubsub"
 	"github.com/fmotalleb/hermes/queries"
 	"github.com/fmotalleb/hermes/registry"
 )
