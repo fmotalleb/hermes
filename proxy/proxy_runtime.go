@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"net/url"
 	"time"
 
 	"github.com/fmotalleb/hermes/cache"
@@ -11,6 +12,11 @@ import (
 )
 
 type Proxy struct {
+	ListenHTTP string        `env:"HERMES_HTTP_LISTEN" default:"0.0.0.0:80"`
+	ListenTLS  string        `env:"HERMES_TLS_LISTEN" default:"0.0.0.0:443"`
+	Timeout    time.Duration `env:"HERMES_PROXY_TIMEOUT" default:"1m"`
+	ProxyAddr  *url.URL
+
 	cache cache.Cache
 	db    queries.DB
 }

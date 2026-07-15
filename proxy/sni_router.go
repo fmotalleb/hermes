@@ -8,28 +8,22 @@ import (
 	"net/netip"
 	"time"
 
-	"github.com/fmotalleb/go-tools/env"
 	"github.com/fmotalleb/go-tools/log"
 	"go.uber.org/zap"
 
 	"github.com/fmotalleb/junction/crypto/tls"
 )
 
-const DefaultSNIListen = "0.0.0.0:443"
-
-var (
-	sniListen     = env.Or("SNI_LISTEN", DefaultSNIListen)
-	errSNIMissing = errors.New("SNI missing in ClientHello")
-)
+var errSNIMissing = errors.New("SNI missing in ClientHello")
 
 func (p *Proxy) serveSNIRouter(ctx context.Context) error {
 	logger := log.FromContext(ctx).Named("proxy.sni_router").
 		With(
 			zap.String("router", "sni"),
-			zap.String("listen", sniListen),
+			zap.String("listen", p.ListenTLS),
 		)
 
-	addrPort, err := netip.ParseAddrPort(sniListen)
+	addrPort, err := netip.ParseAddrPort(p.ListenTLS)
 	if err != nil {
 		return err
 	}
@@ -84,14 +78,14 @@ func (p *Proxy) handleClient(ctx context.Context, conn net.Conn, logger *zap.Log
 }
 
 func (p *Proxy) proxyToTarget(parentCtx context.Context, client net.Conn, sni string, buf []byte, n int, logger *zap.Logger) {
-	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(parentCtx, p.Timeout)
 	defer cancel()
 
 	go func() {
 		<-ctx.Done()
 		_ = client.Close()
 	}()
-
+	// TODO: handle with p.ProxyAddr
 	server, err := net.DialTimeout("tcp", net.JoinHostPort(sni, "443"), 10*time.Second)
 	if err != nil {
 		_ = client.Close()
