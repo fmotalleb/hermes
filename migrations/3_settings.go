@@ -26,15 +26,7 @@ CREATE TYPE forward_policy AS ENUM (
 	'default',
 	'custom'
 );`
-			const addZoneForwardPolicy = `
-ALTER TABLE zones
-ADD COLUMN IF NOT EXISTS forward_policy forward_policy NOT NULL DEFAULT 'default';
-
-UPDATE zones
-SET forward_policy = CASE
-    WHEN forward_zone_id IS NULL THEN 'default'::forward_policy
-    ELSE 'custom'::forward_policy
-END;`
+			const addZoneForwardPolicy = "\nALTER TABLE zones\nADD COLUMN IF NOT EXISTS forward_policy NOT NULL DEFAULT 'default';\n\nUPDATE zones\nSET forward_policy = CASE\n    WHEN forward_zone_id IS NULL THEN 'default'::forward_policy\n    ELSE 'custom'::forward_policy\nEND;"
 
 			const createSettingsTrigger = `
 DROP TRIGGER IF EXISTS trg_settings_set_updated_at ON settings;

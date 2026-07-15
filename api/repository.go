@@ -153,7 +153,7 @@ func (r *repository) deleteZone(ctx context.Context, id string) (any, error) {
 
 	r.invalidateZonesCache(ctx)
 	r.invalidateDNSCache(ctx)
-	return fmt.Sprintf("zone successfully deleted with id: %s", id), nil
+	return "zone successfully deleted with id: " + id, nil
 }
 
 func (r *repository) getForwardZones(ctx context.Context, limit, offset uint32) ([]models.ForwardZone, error) {
@@ -194,7 +194,7 @@ func (r *repository) deleteForwardZone(ctx context.Context, id string) (any, err
 
 	r.invalidateZonesCache(ctx)
 	r.invalidateDNSCache(ctx)
-	return fmt.Sprintf("forward zone successfully deleted with id: %s", id), nil
+	return "forward zone successfully deleted with id: " + id, nil
 }
 
 func (r *repository) getRecords(ctx context.Context, zoneID string, limit, offset uint32) ([]models.DNSRecord, error) {
@@ -234,7 +234,7 @@ func (r *repository) deleteRecord(ctx context.Context, zoneID, id string) (any, 
 
 	r.invalidateZonesCache(ctx)
 	r.invalidateDNSCache(ctx)
-	return fmt.Sprintf("record successfully deleted with id: %s", id), nil
+	return "record successfully deleted with id: " + id, nil
 }
 
 func (r *repository) getSettings(ctx context.Context) (models.Settings, error) {
@@ -363,7 +363,7 @@ func (r *repository) deleteHijack(ctx context.Context, id string) (any, error) {
 	}
 
 	r.invalidateDNSCache(ctx)
-	return fmt.Sprintf("hijack successfully deleted with id: %s", id), nil
+	return "hijack successfully deleted with id: " + id, nil
 }
 
 func (r *repository) getServices(ctx context.Context, kind string) (any, error) {

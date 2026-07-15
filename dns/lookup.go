@@ -97,12 +97,12 @@ func (h *handler) lookup(ctx context.Context, qname string, qtype uint16, req *d
 	qname = normalizeDNSName(qname)
 	span.SetAttributes(attribute.String("query.normalized_name", qname))
 
-	zone, err := h.dnsStore.findZone(ctx, qname)
+	zone, err := h.findZone(ctx, qname)
 	if err != nil {
 		if isNoRows(err) {
 			span.AddEvent("zone not found")
 
-			settings, settingsErr := h.dnsStore.loadSettings(ctx)
+			settings, settingsErr := h.loadSettings(ctx)
 			if settingsErr != nil {
 				span.RecordError(settingsErr)
 				span.SetStatus(codes.Error, "failed to load settings")
@@ -132,7 +132,7 @@ func (h *handler) lookup(ctx context.Context, qname string, qtype uint16, req *d
 		attribute.String("zone.forward_zone_id", zone.ForwardZoneID),
 	)
 
-	records, err := h.dnsStore.recordsForZone(ctx, zone.ID)
+	records, err := h.recordsForZone(ctx, zone.ID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to load records")
@@ -156,7 +156,7 @@ func (h *handler) lookup(ctx context.Context, qname string, qtype uint16, req *d
 
 	defaultForwardZoneID := ""
 	if zone.ForwardPolicy == models.ForwardPolicyDefault {
-		settings, err := h.dnsStore.loadSettings(ctx)
+		settings, err := h.loadSettings(ctx)
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "failed to load settings")

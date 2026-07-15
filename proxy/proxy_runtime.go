@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -43,7 +44,7 @@ func NewProxy(listenAddr string, httpPorts, tlsPorts []string, timeout time.Dura
 		parsedURL = u
 	}
 	if len(httpPorts) == 0 && len(tlsPorts) == 0 {
-		return nil, fmt.Errorf("at least one HTTP or TLS port must be configured")
+		return nil, errors.New("at least one HTTP or TLS port must be configured")
 	}
 	return &Proxy{
 		ListenAddr: listenAddr,

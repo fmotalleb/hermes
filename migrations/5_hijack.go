@@ -17,39 +17,7 @@ CREATE TYPE hijack_policy AS ENUM (
 	'raw'
 );`
 
-			const createHijacksTable = `
-CREATE TABLE IF NOT EXISTS hijacks (
-	id UUID PRIMARY KEY DEFAULT uuidv7(),
-
-	name TEXT NOT NULL,
-	value TEXT NOT NULL,
-
-	record_type dns_record_type NOT NULL,
-
-	policy hijack_policy NOT NULL,
-
-	forward_policy forward_policy NOT NULL
-		DEFAULT 'default'::forward_policy,
-
-	forward_zone_id UUID
-		REFERENCES forward_zones(id)
-		ON DELETE SET NULL,
-
-	ttl uint32 NOT NULL DEFAULT 300,
-
-	created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-	updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-	CONSTRAINT chk_hijack_proxy_requires_zone
-	CHECK (
-		policy <> 'forward'
-		OR forward_zone_id IS NOT NULL
-	),
-
-	CONSTRAINT uq_hijacks_name_record_type
-	UNIQUE (name, record_type)
-);
-`
+			const createHijacksTable = "\nCREATE TABLE IF NOT EXISTS hijacks (\n\tid UUID PRIMARY KEY DEFAULT uuidv7(),\n\n\tname TEXT NOT NULL,\n\tvalue TEXT NOT NULL,\n\n\trecord_type dns_record_type NOT NULL,\n\n\tpolicy hijack_policy NOT NULL,\n\n\tforward_policy NOT NULL\n\t\tDEFAULT 'default'::forward_policy,\n\n\tforward_zone_id UUID\n\t\tREFERENCES forward_zones(id)\n\t\tON DELETE SET NULL,\n\n\tttl uint32 NOT NULL DEFAULT 300,\n\n\tcreated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),\n\tupdated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),\n\n\tCONSTRAINT chk_hijack_proxy_requires_zone\n\tCHECK (\n\t\tpolicy <> 'forward'\n\t\tOR forward_zone_id IS NOT NULL\n\t),\n\n\tCONSTRAINT uq_hijacks_name_record_type\n\tUNIQUE (name, record_type)"
 
 			const createHijackIndexes = `
 CREATE INDEX IF NOT EXISTS idx_hijacks_zone_id

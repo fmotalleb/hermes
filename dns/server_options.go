@@ -2,6 +2,7 @@ package dns
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -79,7 +80,7 @@ func defaultServerConfig() *ServerConfig {
 func WithListenAddr(addr string) ServerOption {
 	return func(c *ServerConfig) error {
 		if addr == "" {
-			return fmt.Errorf("listen address must not be empty")
+			return errors.New("listen address must not be empty")
 		}
 		c.listenAddr = addr
 		return nil
@@ -99,7 +100,7 @@ func WithProtocol(p Protocol) ServerOption {
 func WithTLSFiles(certFile, keyFile string) ServerOption {
 	return func(c *ServerConfig) error {
 		if certFile == "" || keyFile == "" {
-			return fmt.Errorf("both certFile and keyFile must be provided for TLS")
+			return errors.New("both certFile and keyFile must be provided for TLS")
 		}
 		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 		if err != nil {
@@ -120,7 +121,7 @@ func WithTLSFiles(certFile, keyFile string) ServerOption {
 func WithTLSConfig(cfg *tls.Config) ServerOption {
 	return func(c *ServerConfig) error {
 		if cfg == nil {
-			return fmt.Errorf("tls.Config must not be nil")
+			return errors.New("tls.Config must not be nil")
 		}
 		c.tlsConfig = cfg
 		c.protocol = ProtocolTLS
@@ -133,7 +134,7 @@ func WithTLSConfig(cfg *tls.Config) ServerOption {
 func WithHTTPS(path string) ServerOption {
 	return func(c *ServerConfig) error {
 		if c.tlsConfig == nil {
-			return fmt.Errorf("WithHTTPS requires TLS to be configured first (use WithTLSFiles or WithTLSConfig)")
+			return errors.New("WithHTTPS requires TLS to be configured first (use WithTLSFiles or WithTLSConfig)")
 		}
 		if path != "" {
 			c.httpPath = path

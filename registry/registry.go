@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -142,7 +143,7 @@ func (c *RegistryConnection) GetSelf(ctx context.Context) (*Entry, error) {
 // GetByID reads one instance from Redis.
 func (c *RegistryConnection) GetByID(ctx context.Context, kind, instanceID string) (*Entry, error) {
 	val, err := c.redis.Get(ctx, redisKey(kind, instanceID)).Result()
-	if err == redis.Nil {
+	if errors.Is(err, redis.Nil) {
 		return nil, nil
 	}
 	if err != nil {

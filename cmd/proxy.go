@@ -40,7 +40,7 @@ var proxyCmd = &cobra.Command{
 			app.Config.ProxyServerTLSPorts,
 			app.Config.ProxyTimeout,
 			app.Config.ProxyURL,
-			cache.NewMemoryCache(ctx, cache.MemCacheOption{10_000}),
+			cache.NewMemoryCache(ctx, cache.MemCacheOption{MaxSize: 10_000}),
 			app.DB,
 			bus,
 			log.FromContext(ctx).Named("proxy"),

@@ -3,6 +3,7 @@ package queries
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"github.com/fmotalleb/hermes/models"
 )
@@ -54,5 +55,5 @@ func ensureSettingsRow(ctx context.Context, db DB) error {
 }
 
 func isSettingsMissing(err error) bool {
-	return err == sql.ErrNoRows
+	return errors.Is(err, sql.ErrNoRows)
 }

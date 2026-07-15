@@ -92,12 +92,12 @@ func Serve(ctx context.Context, app *runtime.App, bus pubsub.Bus, opts ...Server
 		serveTCP(eg, groupCtx, cfg, h)
 	case ProtocolTLS:
 		if cfg.tlsConfig == nil {
-			return fmt.Errorf("ProtocolTLS requires TLS configuration (use WithTLSFiles or WithTLSConfig)")
+			return errors.New("ProtocolTLS requires TLS configuration (use WithTLSFiles or WithTLSConfig)")
 		}
 		serveTLS(eg, groupCtx, cfg, h)
 	case ProtocolHTTPS:
 		if cfg.tlsConfig == nil {
-			return fmt.Errorf("ProtocolHTTPS requires TLS configuration (use WithTLSFiles or WithTLSConfig)")
+			return errors.New("ProtocolHTTPS requires TLS configuration (use WithTLSFiles or WithTLSConfig)")
 		}
 		serveDoH(eg, groupCtx, cfg, h)
 	default:

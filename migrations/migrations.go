@@ -88,7 +88,6 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 		}
 
 		logger.Info("Successfully applied migration", "version", migration.Version, "name", migration.Name)
-
 	}
 
 	return nil

@@ -236,7 +236,7 @@ func (b *watermillBus) Publish(ctx context.Context, topic string, payload []byte
 		return errors.New("pubsub is not configured")
 	}
 
-	ctx, span := b.tracer.Start(ctx, fmt.Sprintf("%s publish", topic),
+	ctx, span := b.tracer.Start(ctx, topic+" publish",
 		trace.WithSpanKind(trace.SpanKindProducer),
 		trace.WithAttributes(
 			semconv.MessagingSystemKey.String("watermill"),
@@ -298,7 +298,7 @@ func (b *watermillBus) handleMessage(ctx context.Context, topic string, msg *mes
 	// Extract trace context from message metadata
 	msgCtx := b.propagator.Extract(msg.Context(), messageCarrier{msg: msg})
 
-	msgCtx, span := b.tracer.Start(msgCtx, fmt.Sprintf("%s process", topic),
+	msgCtx, span := b.tracer.Start(msgCtx, topic+" process",
 		trace.WithSpanKind(trace.SpanKindConsumer),
 		trace.WithAttributes(
 			semconv.MessagingSystemKey.String("watermill"),

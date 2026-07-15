@@ -2,6 +2,7 @@ package models
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -25,12 +26,12 @@ func parseForwardAddress(raw string) (*ForwardAddress, error) {
 
 	host := u.Hostname()
 	if host == "" {
-		return nil, fmt.Errorf("missing host")
+		return nil, errors.New("missing host")
 	}
 
 	portStr := u.Port()
 	if portStr == "" {
-		return nil, fmt.Errorf("missing port")
+		return nil, errors.New("missing port")
 	}
 
 	port, err := strconv.Atoi(portStr)
