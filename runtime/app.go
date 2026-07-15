@@ -173,7 +173,7 @@ func (a *App) StartHTTPServer(ctx context.Context, handler http.Handler) error {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	go func() {
+	go func() { //nolint:gosec // shutdown needs fresh context; parent is already canceled at this point
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -200,7 +200,7 @@ func (a *App) StartMetricsServer(ctx context.Context, exporter http.Handler) err
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	go func() {
+	go func() { //nolint:gosec // shutdown needs fresh context; parent is already canceled at this point
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()

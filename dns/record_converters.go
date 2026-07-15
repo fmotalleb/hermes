@@ -11,7 +11,7 @@ import (
 	"github.com/fmotalleb/hermes/models"
 )
 
-func recordToRR(zoneName, qname string, r record) (dns.RR, bool) {
+func recordToRR(zoneName, qname string, r record) (dns.RR, bool) { //nolint:gocyclo // DNS record type dispatch; each case is self-contained
 	owner := ownerName(zoneName, qname, r.Name)
 	ttl := r.TTL
 	if ttl == 0 {
@@ -54,7 +54,7 @@ func recordToRR(zoneName, qname string, r record) (dns.RR, bool) {
 	case models.PTR:
 		return &dns.PTR{Hdr: hdr, Ptr: fqdn(r.Value)}, true
 	case models.MX:
-		return &dns.MX{Hdr: hdr, Preference: uint16(r.Priority), Mx: fqdn(r.Value)}, true
+		return &dns.MX{Hdr: hdr, Preference: uint16(r.Priority), Mx: fqdn(r.Value)}, true //nolint:gosec // intentional DNS protocol truncation
 	case models.TXT:
 		return &dns.TXT{Hdr: hdr, Txt: []string{r.Value}}, true
 	case models.CAA:
@@ -109,7 +109,7 @@ func parseCAA(hdr dns.RR_Header, value string) (dns.RR, bool) {
 	data := strings.Join(parts[2:], " ")
 	data = strings.Trim(data, `"`)
 
-	return &dns.CAA{Hdr: hdr, Flag: uint8(flags), Tag: tag, Value: data}, true
+	return &dns.CAA{Hdr: hdr, Flag: uint8(flags), Tag: tag, Value: data}, true //nolint:gosec // intentional DNS protocol truncation
 }
 
 func parseSOA(hdr dns.RR_Header, zoneName string, r record) (dns.RR, bool) {
@@ -139,7 +139,7 @@ func parseSOA(hdr dns.RR_Header, zoneName string, r record) (dns.RR, bool) {
 		ttl = 300
 	}
 
-	serial := uint32(time.Now().Unix())
+	serial := uint32(time.Now().Unix()) //nolint:gosec // intentional DNS protocol truncation
 	return &dns.SOA{
 		Hdr:     hdr,
 		Ns:      fqdn("ns1." + zoneName),
@@ -181,7 +181,7 @@ func parseSRV(hdr dns.RR_Header, r record) (dns.RR, bool) {
 
 		return &dns.SRV{
 			Hdr:      hdr,
-			Priority: uint16(priority),
+			Priority: uint16(priority), //nolint:gosec // intentional DNS protocol truncation
 			Weight:   uint16(weight),
 			Port:     uint16(port),
 			Target:   fqdn(target),

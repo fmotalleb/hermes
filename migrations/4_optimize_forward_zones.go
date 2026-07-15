@@ -48,7 +48,8 @@ func optimizeForwardZones() Migration {
 					structured = append(structured, parseLegacyAddress(addr))
 				}
 
-				buf, err := json.Marshal(structured)
+				var buf []byte
+				buf, err = json.Marshal(structured)
 				if err != nil {
 					return err
 				}
@@ -59,7 +60,7 @@ func optimizeForwardZones() Migration {
 				}
 			}
 
-			if err := rows.Err(); err != nil {
+			if err = rows.Err(); err != nil {
 				return err
 			}
 

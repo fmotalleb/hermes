@@ -191,7 +191,7 @@ func (h *httpProxyHandler) handleHTTPRequest(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	resp, err := (&http.Client{Transport: &http.Transport{Dial: dialer.Dial}}).Do(req)
+	resp, err := (&http.Client{Transport: &http.Transport{Dial: dialer.Dial}}).Do(req) //nolint:gosec // SSRF is intentional; proxy forwards to user-configured targets
 	if err != nil {
 		h.logger.Error("Request to target failed", zap.String("url", targetURL.String()), zap.Error(err))
 		http.Error(w, "Request failed", http.StatusBadGateway)

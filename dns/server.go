@@ -17,7 +17,7 @@ import (
 	"github.com/fmotalleb/hermes/runtime"
 )
 
-func Serve(ctx context.Context, app *runtime.App, bus pubsub.Bus, opts ...ServerOption) error {
+func Serve(ctx context.Context, app *runtime.App, bus pubsub.Bus, opts ...ServerOption) error { //nolint:gocyclo // comprehensive server bootstrap; splitting would harm readability
 	cfg := defaultServerConfig()
 	for _, opt := range opts {
 		if err := opt(cfg); err != nil {

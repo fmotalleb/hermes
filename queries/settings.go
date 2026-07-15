@@ -46,4 +46,3 @@ func UpdateSettings(ctx context.Context, db DB, defaultForwardZoneID *string) (m
 	row := db.QueryRowContext(ctx, upsertSettingsQuery, defaultForwardZoneID)
 	return scanSettings(row)
 }
-
