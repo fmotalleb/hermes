@@ -16,20 +16,20 @@ import (
 
 var errSNIMissing = errors.New("SNI missing in ClientHello")
 
-func (p *Proxy) serveSNIRouter(ctx context.Context) error {
+func (p *Proxy) serveSNIRouter(ctx context.Context, addr string) error {
 	logger := log.FromContext(ctx).Named("proxy.sni_router").
 		With(
 			zap.String("router", "sni"),
-			zap.String("listen", p.ListenTLS),
+			zap.String("listen", addr),
 		)
 
-	addrPort, err := netip.ParseAddrPort(p.ListenTLS)
+	addrPort, err := netip.ParseAddrPort(addr)
 	if err != nil {
 		return err
 	}
 
-	addr := net.TCPAddrFromAddrPort(addrPort)
-	listener, err := net.ListenTCP("tcp", addr)
+	tcpAddr := net.TCPAddrFromAddrPort(addrPort)
+	listener, err := net.ListenTCP("tcp", tcpAddr)
 	if err != nil {
 		logger.Error("listen failed", zap.Error(err))
 		return err

@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"strconv"
+	"time"
 
 	"github.com/fmotalleb/go-tools/env"
 	"github.com/joho/godotenv"
@@ -46,9 +47,11 @@ type Config struct {
 	DNSTLSPrivateKeyFile  string
 
 	// Transparent Proxy Specific section
+	ProxyListenAddr      string
 	ProxyServerHTTPPorts []string
 	ProxyServerTLSPorts  []string
-	ProxyTunnelChain     string
+	ProxyURL             string
+	ProxyTimeout         time.Duration
 }
 
 func LoadConfig() Config {
@@ -96,6 +99,12 @@ func LoadConfig() Config {
 
 		DNSTLSCertificateFile: env.Or("DNS_TLS_CERTIFICATE", ""),
 		DNSTLSPrivateKeyFile:  env.Or("DNS_TLS_PRIVATE_KEY", ""),
+
+		ProxyURL:             env.Or("PROXY_URL", ""),
+		ProxyListenAddr:      env.Or("PROXY_LISTEN_ADDR", "0.0.0.0"),
+		ProxyServerHTTPPorts: env.SliceOr("PROXY_HTTP_PORTS", []string{"1080"}),
+		ProxyServerTLSPorts:  env.SliceOr("PROXY_TLS_PORTS", []string{"1443"}),
+		ProxyTimeout:         env.DurationOr("PROXY_TIMEOUT", time.Minute),
 	}
 }
 

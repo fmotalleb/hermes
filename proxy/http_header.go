@@ -9,7 +9,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 	"time"
 
@@ -19,32 +18,20 @@ import (
 	jproxy "github.com/fmotalleb/junction/proxy"
 )
 
-const maxHostnameLength = 255
-
-var (
-	validHostnameRfc1123 = regexp.MustCompile(`^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$`)
-	localhostIdentifiers = []string{
-		"localhost",
-		"localhost.localdomain",
-		"localhost6.localdomain6",
-		"ip6-localhost",
-	}
-)
-
-// serveHTTPRouter starts an HTTP proxy server for the given entry point.
-// It initializes the server with a proxy handler that forwards requests through a SOCKS5 proxy chain as specified by the entry configuration.
-func (p *Proxy) serveHTTPRouter(ctx context.Context) error {
+// serveHTTPRouter starts an HTTP proxy server on the given addr.
+// It initializes the server with a proxy handler that forwards requests through a SOCKS5 proxy chain.
+func (p *Proxy) serveHTTPRouter(ctx context.Context, addr string) error {
 	logger := log.FromContext(ctx).
 		Named("router.http").
 		With(
 			zap.String("router", "http"),
-			zap.String("listen", p.ListenHTTP),
+			zap.String("listen", addr),
 		)
 
 	server := &http.Server{
 		ReadHeaderTimeout: time.Second * 30,
 		BaseContext:       func(_ net.Listener) context.Context { return ctx },
-		Addr:              p.ListenHTTP,
+		Addr:              addr,
 		Handler: &httpProxyHandler{
 			Proxy:      p,
 			ctx:        ctx,
@@ -114,7 +101,7 @@ func prepareTargetHost(hostHeader, targetPort string) (string, error) {
 		return "", errors.New("host header is empty")
 	}
 
-	// Only parse URL if scheme exists
+	// Strip scheme if present
 	if strings.Contains(host, "://") {
 		u, err := url.Parse(host)
 		if err != nil || u.Host == "" {
@@ -123,52 +110,20 @@ func prepareTargetHost(hostHeader, targetPort string) (string, error) {
 		host = u.Host
 	}
 
+	// Strip port, keep just the hostname
 	if h, _, err := net.SplitHostPort(host); err == nil {
 		host = h
 	}
 
-	if err := isValidHostname(host); err != nil {
-		return "", err
+	if host == "" {
+		return "", errors.New("empty host after parsing")
 	}
 
 	if targetPort == "" {
 		return host, nil
 	}
 
-	buf := make([]byte, 0, len(host)+1+len(targetPort))
-	buf = append(buf, host...)
-	buf = append(buf, ':')
-	buf = append(buf, targetPort...)
-	return string(buf), nil
-}
-
-// ValidHostname determines whether the passed string is a valid hostname.
-// In case it's not, the returned error contains the details of the failure.
-// From: https://github.com/datadog/datadog-agent/blob/914b7646d5d4/pkg/util/hostname/validate/validate.go#L16C1-L55C2
-func isValidHostname(hostname string) error {
-	switch {
-	case hostname == "":
-		return errors.New("hostname is empty")
-	case isLocal(hostname):
-		return fmt.Errorf("%s is a local hostname", hostname)
-	case len(hostname) > maxHostnameLength:
-		return fmt.Errorf("name exceeded the maximum length of %d characters", maxHostnameLength)
-	case !validHostnameRfc1123.MatchString(hostname):
-		return fmt.Errorf("%s is not RFC1123 compliant", hostname)
-	default:
-		return nil
-	}
-}
-
-// check whether the name is in the list of local hostnames.
-func isLocal(name string) bool {
-	name = strings.ToLower(name)
-	for _, val := range localhostIdentifiers {
-		if val == name {
-			return true
-		}
-	}
-	return false
+	return net.JoinHostPort(host, targetPort), nil
 }
 
 func (h *httpProxyHandler) handleConnect(w http.ResponseWriter, _ *http.Request, targetHost string) {
