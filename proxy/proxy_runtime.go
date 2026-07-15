@@ -2,8 +2,6 @@ package proxy
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"net/url"
 	"time"
 
@@ -44,9 +42,6 @@ func (p *Proxy) AllowedHost(ctx context.Context, host string) bool {
 		`SELECT 1 FROM zones WHERE name = $1 LIMIT 1;`,
 		host,
 	).Scan(&exists); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return false
-		}
 		return false
 	}
 

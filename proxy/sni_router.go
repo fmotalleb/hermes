@@ -3,15 +3,15 @@ package proxy
 import (
 	"context"
 	"errors"
-	"io"
 	"net"
 	"net/netip"
-	"time"
+	"net/url"
 
 	"github.com/fmotalleb/go-tools/log"
 	"go.uber.org/zap"
 
 	"github.com/fmotalleb/junction/crypto/tls"
+	jproxy "github.com/fmotalleb/junction/proxy"
 )
 
 var errSNIMissing = errors.New("SNI missing in ClientHello")
@@ -81,13 +81,16 @@ func (p *Proxy) proxyToTarget(parentCtx context.Context, client net.Conn, sni st
 	ctx, cancel := context.WithTimeout(parentCtx, p.Timeout)
 	defer cancel()
 
-	go func() {
-		<-ctx.Done()
-		_ = client.Close()
-	}()
-	// TODO: handle with p.ProxyAddr
-	server, err := net.DialTimeout("tcp", net.JoinHostPort(sni, "443"), 10*time.Second)
+	dialer, err := jproxy.NewDialer([]*url.URL{p.ProxyAddr})
 	if err != nil {
+		logger.Error("failed to create SOCKS5 dialer", zap.Error(err))
+		_ = client.Close()
+		return
+	}
+
+	server, err := dialer.Dial("tcp", net.JoinHostPort(sni, "443"))
+	if err != nil {
+		logger.Debug("failed to connect to target", zap.String("sni", sni), zap.Error(err))
 		_ = client.Close()
 		return
 	}
@@ -99,20 +102,7 @@ func (p *Proxy) proxyToTarget(parentCtx context.Context, client net.Conn, sni st
 		return
 	}
 
-	errCh := make(chan error, 2)
-	go func() {
-		_, err := io.Copy(server, client)
-		errCh <- err
-	}()
-	go func() {
-		_, err := io.Copy(client, server)
-		errCh <- err
-	}()
-
-	<-ctx.Done()
-	_ = client.Close()
-	_ = server.Close()
-	<-errCh
+	relayTraffic(ctx, client, server, logger)
 }
 
 func readSNI(conn net.Conn, logger *zap.Logger) ([]byte, []byte, int, error) {

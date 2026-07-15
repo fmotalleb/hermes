@@ -11,24 +11,17 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/fmotalleb/go-tools/log"
 	"go.uber.org/zap"
 
-	"github.com/fmotalleb/junction/config"
 	jproxy "github.com/fmotalleb/junction/proxy"
 )
 
-const (
-	DefaultHTTPPort   = ""
-	maxHostnameLength = 255
-)
+const maxHostnameLength = 255
 
 var (
-	httpGroupMu          sync.Mutex
-	httpGroups           = map[string][]config.EntryPoint{} // tag → entry list
 	validHostnameRfc1123 = regexp.MustCompile(`^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$`)
 	localhostIdentifiers = []string{
 		"localhost",
@@ -81,7 +74,6 @@ type httpProxyHandler struct {
 }
 
 func (h *httpProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// remoteAddr := addrFromRemote(r.RemoteAddr)
 	port := h.targetPort
 	targetHost, err := prepareTargetHost(
 		cmp.Or(r.Host, r.Header.Get("Host")),
@@ -102,11 +94,6 @@ func (h *httpProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	// if !entry.AllowedFrom(remoteAddr) {
-	// 	h.logger.Debug("connection rejected", zap.String("client", r.RemoteAddr))
-	// 	w.WriteHeader(http.StatusForbidden)
-	// 	return
-	// }
 
 	h.logger.Debug("HTTP request received",
 		zap.String("method", r.Method),
