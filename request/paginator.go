@@ -1,3 +1,6 @@
+// Package request provides HTTP request parsing utilities, including a
+// paginator that extracts limit/offset query parameters with sensible defaults
+// and maximum bounds.
 package request
 
 import (
@@ -12,8 +15,10 @@ const (
 	maximumLimit  = uint32(100)
 )
 
-var InvalidPaginatorParams = errors.New("invalid paginator parameters")
+// ErrInvalidPaginatorParams is returned when paginator query parameters are invalid.
+var ErrInvalidPaginatorParams = errors.New("invalid paginator parameters")
 
+// Paginator holds the pagination offset and limit extracted from query parameters.
 type Paginator struct {
 	Offset uint32
 	Limit  uint32
@@ -23,6 +28,8 @@ type queryParamer interface {
 	QueryParam(string) string
 }
 
+// PaginatorOf extracts and validates pagination parameters (offset, limit)
+// from the request query string, applying sensible defaults and maximum bounds.
 func PaginatorOf(ctx queryParamer) Paginator {
 	offsetStr := ctx.QueryParam("offset")
 	limitStr := ctx.QueryParam("limit")

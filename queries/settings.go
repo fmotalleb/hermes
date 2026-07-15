@@ -37,11 +37,14 @@ func scanSettings(row scanner) (models.Settings, error) {
 	return settings, nil
 }
 
+// GetSettings returns the global application settings (singleton row).
 func GetSettings(ctx context.Context, db DB) (models.Settings, error) {
 	row := db.QueryRowContext(ctx, getSettingsQuery)
 	return scanSettings(row)
 }
 
+// UpdateSettings upserts the global default forward zone ID.
+// Pass nil or empty string to clear the default forward zone.
 func UpdateSettings(ctx context.Context, db DB, defaultForwardZoneID *string) (models.Settings, error) {
 	row := db.QueryRowContext(ctx, upsertSettingsQuery, defaultForwardZoneID)
 	return scanSettings(row)

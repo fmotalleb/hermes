@@ -77,7 +77,7 @@ func writeAnswer(w dns.ResponseWriter, resp *dns.Msg, span trace.Span) {
 	}
 }
 
-func (h *handler) lookup(ctx context.Context, qname string, qtype uint16, req *dns.Msg) (*dns.Msg, error) { //nolint:funlen // comprehensive DNS resolution with zone lookup, forwarding, and hijacking; splitting would harm readability
+func (h *handler) lookup(ctx context.Context, qname string, qtype uint16, req *dns.Msg) (*dns.Msg, error) {
 	ctx, span := otel.Tracer("dns").Start(ctx, "dns.lookup")
 	defer span.End()
 

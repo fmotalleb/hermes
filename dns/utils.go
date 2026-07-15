@@ -13,7 +13,7 @@ func nxdomain(req *dns.Msg) *dns.Msg {
 	return msg
 }
 
-func ownerName(zoneName, qname, recordName string) string {
+func ownerName(zoneName, _, recordName string) string {
 	recordName = normalizeDNSName(recordName)
 	zoneName = normalizeDNSName(zoneName)
 

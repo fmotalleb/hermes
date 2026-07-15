@@ -28,7 +28,7 @@ func newHandler(r *repository, migrator Migrator, metrics http.Handler, bus pubs
 	}
 }
 
-func notFoundEntity(ctx *web.Context, logMessage, entityName, value string, err error) (any, error) {
+func notFoundEntity(_ *web.Context, logMessage, entityName, value string, _ error) (any, error) {
 	_ = logMessage
 	return nil, entityNotFoundError{Name: entityName, Value: value}
 }

@@ -33,6 +33,7 @@ import (
 	"github.com/fmotalleb/hermes/registry"
 )
 
+// App represents the runtime application with database, Redis, telemetry, and service registry.
 type App struct {
 	id     uuid.UUID
 	Config Config
@@ -50,6 +51,8 @@ type App struct {
 	ServiceRegistry *registry.RegistryConnection
 }
 
+// New creates and initializes a new App instance.
+// It connects to the database and Redis, configures OpenTelemetry, and starts the service registry heartbeat.
 func New(ctx context.Context, kind string, logger *slog.Logger) (*App, error) {
 	var id uuid.UUID
 	var err error
@@ -272,6 +275,6 @@ func newTraceProvider(ctx context.Context, cfg Config, res *resource.Resource) (
 	return sdktrace.NewTracerProvider(opts...), nil
 }
 
-func grpcDial(ctx context.Context, target string) (*grpc.ClientConn, error) {
+func grpcDial(_ context.Context, target string) (*grpc.ClientConn, error) {
 	return grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 }

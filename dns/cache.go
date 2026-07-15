@@ -10,14 +10,16 @@ import (
 )
 
 const (
-	DNSCacheInvalidTopic              = "dns:cache:invalidate"
+	// DNSCacheInvalidTopic is the pubsub topic used to signal DNS cache invalidation.
+	DNSCacheInvalidTopic = "dns:cache:invalidate"
+
 	dnsResponseCacheDefaultTTL        = 30 * time.Second
 	dnsResponseCacheNegativeTTL       = 10 * time.Second
 	dnsResponseCacheMaximumTTL        = 60 * time.Second
 	dnsResponseCacheRedisKeyNamespace = "dns:response:v1"
 )
 
-var dnsCacheInvalidBackend = errors.New("cache backend is invalid")
+var errDNSCacheInvalidBackend = errors.New("cache backend is invalid")
 
 func dnsResponseCacheKey(qname string, qtype, qclass uint16) string {
 	return fmt.Sprintf(

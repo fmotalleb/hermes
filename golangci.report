@@ -1,0 +1,334 @@
+dns/forwarder.go:34:19: Function 'forward' has too many statements (79 > 50) (funlen)
+func (h *handler) forward( //nolint:gocyclo // comprehensive multi-protocol forwarder; splitting would harm readability
+                  ^
+api/handler.go:43:3: string `limit` has 4 occurrences, make it a constant (goconst)
+		"limit":  p.Limit,
+		^
+api/handler.go:44:3: string `offset` has 4 occurrences, make it a constant (goconst)
+		"offset": p.Offset,
+		^
+api/handler.go:45:3: string `data` has 4 occurrences, make it a constant (goconst)
+		"data":   zones,
+		^
+dns/cache_test.go:28:13: string `www.example.com.` has 3 occurrences, make it a constant (goconst)
+				Name:   "www.example.com.",
+				        ^
+dns/forwarder.go:79:15: string `tcp` has 5 occurrences, make it a constant (goconst)
+		case "udp", "tcp", "tls":
+		            ^
+dns/forwarder.go:114:8: string `https` has 3 occurrences, make it a constant (goconst)
+		case "https": // DNS over HTTPS
+		     ^
+dns/hijack_lookup_test.go:48:12: string `*.example.com` has 3 occurrences, make it a constant (goconst)
+				{Name: "*.example.com", Type: models.A, Value: "1.1.1.1", Policy: models.HijackPolicyRaw, TTL: 60},
+				       ^
+dns/hijack_lookup_test.go:75:17: string `www.example.com.` has 3 occurrences, make it a constant (goconst)
+			qname:       "www.example.com.",
+			             ^
+dns/lookup_test.go:13:40: string `192.0.2.10` has 3 occurrences, make it a constant (goconst)
+		{Name: "www", Type: models.A, Value: "192.0.2.10", TTL: 300},
+		                                     ^
+dns/lookup_test.go:14:10: string `*.example.com` has 3 occurrences, make it a constant (goconst)
+		{Name: "*.example.com", Type: models.A, Value: "192.0.2.20", TTL: 300},
+		       ^
+dns/server.go:112:48: string `udp` has 5 occurrences, make it a constant (goconst)
+	srv := &dns.Server{Addr: cfg.listenAddr, Net: "udp", Handler: h}
+	                                              ^
+dns/server.go:118:48: string `tcp` has 5 occurrences, make it a constant (goconst)
+	srv := &dns.Server{Addr: cfg.listenAddr, Net: "tcp", Handler: h}
+	                                              ^
+dns/server_options.go:26:10: string `udp` has 5 occurrences, make it a constant (goconst)
+		return "udp"
+		       ^
+dns/server_options.go:28:10: string `tcp` has 5 occurrences, make it a constant (goconst)
+		return "tcp"
+		       ^
+dns/server_options.go:30:10: string `tls` has 4 occurrences, make it a constant (goconst)
+		return "tls"
+		       ^
+dns/server_options.go:50:14: string `https` has 3 occurrences, make it a constant (goconst)
+	case "doh", "https":
+	            ^
+migrations/4_optimize_forward_zones.go:95:14: string `tls` has 3 occurrences, make it a constant (goconst)
+		protocol = "tls"
+		           ^
+migrations/4_optimize_forward_zones.go:98:14: string `https` has 4 occurrences, make it a constant (goconst)
+		protocol = "https"
+		           ^
+models/forward_zone.go:59:19: string `https` has 3 occurrences, make it a constant (goconst)
+		addr.Protocol = "https"
+		                ^
+api/errors.go:13:59: Magic number: 409, in <return> detected (mnd)
+func (entityAlreadyExistsError) StatusCode() int { return 409 }
+                                                          ^
+api/errors.go:27:56: Magic number: 404, in <return> detected (mnd)
+func (e entityNotFoundError) StatusCode() int { return 404 }
+                                                       ^
+api/repository.go:72:50: Magic number: 24, in <argument> detected (mnd)
+	_ = r.cache.Set(ctx, zonesCacheVersionKey, buf, 24*time.Hour)
+	                                                ^
+cmd/proxy.go:43:60: Magic number: 10_000, in <assign> detected (mnd)
+			cache.NewMemoryCache(ctx, cache.MemCacheOption{MaxSize: 10_000}),
+			                                                        ^
+dns/doh.go:24:22: Magic number: 30, in <assign> detected (mnd)
+		ReadHeaderTimeout: 30 * time.Second,
+		                   ^
+dns/doh.go:133:19: Magic number: 300, in <argument> detected (mnd)
+	minTTL := uint32(300) // sensible default
+	                 ^
+dns/forwarder.go:82:14: Magic number: 3, in <assign> detected (mnd)
+				Timeout: 3 * time.Second,
+				         ^
+dns/forwarder.go:101:15: Magic number: 3, in <assign> detected (mnd)
+					Timeout: 3 * time.Second,
+					         ^
+dns/record_converters.go:77:19: Magic number: 4, in <condition> detected (mnd)
+	if len(parts) != 4 {
+	                 ^
+dns/record_converters.go:99:18: Magic number: 3, in <condition> detected (mnd)
+	if len(parts) < 3 {
+	                ^
+dns/record_converters.go:117:19: Magic number: 7, in <condition> detected (mnd)
+	if len(parts) >= 7 {
+	                 ^
+dns/record_converters.go:148:12: Magic number: 3600, in <assign> detected (mnd)
+		Refresh: 3600,
+		         ^
+dns/record_converters.go:149:12: Magic number: 600, in <assign> detected (mnd)
+		Retry:   600,
+		         ^
+dns/record_converters.go:150:12: Magic number: 86400, in <assign> detected (mnd)
+		Expire:  86400,
+		         ^
+dns/record_converters.go:157:18: Magic number: 3, in <condition> detected (mnd)
+	if len(parts) < 3 {
+	                ^
+dns/record_converters.go:190:19: Magic number: 4, in <condition> detected (mnd)
+		if len(parts) < 4 {
+		                ^
+dns/record_converters.go:201:19: Magic number: 3, in <condition> detected (mnd)
+		if len(parts) > 3 {
+		                ^
+migrations/2_dns_api_schema.go:105:12: Magic number: 2, in <assign> detected (mnd)
+		Version: 2,
+		         ^
+migrations/3_settings.go:9:12: Magic number: 3, in <assign> detected (mnd)
+		Version: 3,
+		         ^
+migrations/4_optimize_forward_zones.go:23:12: Magic number: 4, in <assign> detected (mnd)
+		Version: 4,
+		         ^
+migrations/4_optimize_forward_zones.go:130:38: Magic number: 2, in <argument> detected (mnd)
+		parts := strings.SplitN(host, "/", 2)
+		                                   ^
+proxy/http_header.go:32:36: Magic number: 30, in <assign> detected (mnd)
+		ReadHeaderTimeout: time.Second * 30,
+		                                 ^
+proxy/proxy_runtime.go:125:64: Magic number: 5, in <argument> detected (mnd)
+		_ = p.cache.Set(ctx, allowedHostCachePrefix+host, []byte{1}, 5*time.Minute)
+		                                                             ^
+proxy/sni_router.go:109:22: Magic number: 4096, in <argument> detected (mnd)
+	buf := make([]byte, 4096)
+	                    ^
+registry/registry.go:62:19: Magic number: 10, in <assign> detected (mnd)
+		ttl:            10 * time.Second,
+		                ^
+registry/registry.go:63:19: Magic number: 5, in <assign> detected (mnd)
+		heartbeatEvery: 5 * time.Second,
+		                ^
+registry/registry.go:175:64: Magic number: 100, in <argument> detected (mnd)
+		batch, nextCursor, err := c.redis.Scan(ctx, cursor, pattern, 100).Result()
+		                                                             ^
+runtime/app.go:85:24: Magic number: 30, in <argument> detected (mnd)
+	db.SetConnMaxLifetime(30 * time.Minute)
+	                      ^
+runtime/app.go:173:22: Magic number: 5, in <assign> detected (mnd)
+		ReadHeaderTimeout: 5 * time.Second,
+		                   ^
+runtime/app.go:178:68: Magic number: 10, in <argument> detected (mnd)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		                                                                 ^
+runtime/app.go:200:22: Magic number: 5, in <assign> detected (mnd)
+		ReadHeaderTimeout: 5 * time.Second,
+		                   ^
+runtime/app.go:205:68: Magic number: 5, in <argument> detected (mnd)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		                                                                 ^
+runtime/config.go:65:40: Magic number: 8000, in <argument> detected (mnd)
+		HTTPPort:     env.IntOr("HTTP_PORT", 8000),
+		                                     ^
+runtime/config.go:75:50: Magic number: 5, in <argument> detected (mnd)
+		DBMaxIdle: env.IntOr("DB_MAX_IDLE_CONNECTION", 5),
+		                                               ^
+runtime/config.go:76:50: Magic number: 10, in <argument> detected (mnd)
+		DBMaxOpen: env.IntOr("DB_MAX_OPEN_CONNECTION", 10),
+		                                               ^
+runtime/config.go:79:98: Magic number: 6379, in <argument> detected (mnd)
+		RedisAddr:     net.JoinHostPort(env.Or("REDIS_HOST", ""), strconv.Itoa(env.IntOr("REDIS_PORT", 6379))),
+		                                                                                               ^
+runtime/config.go:113:31: Magic number: 5432, in <argument> detected (mnd)
+	port := env.IntOr("DB_PORT", 5432)
+	                             ^
+static/static_embed.go:97:17: Magic number: 512, in <condition> detected (mnd)
+	if len(data) > 512 {
+	               ^
+web/cors.go:58:11: Magic number: 86400, in <assign> detected (mnd)
+		MaxAge: 86400,
+		        ^
+cache/cache.go:1:1: package-comments: should have a package comment (revive)
+package cache
+^
+cache/cache.go:8:6: exported: exported type Cache should have comment or be unexported (revive)
+type Cache interface {
+     ^
+cache/memory.go:13:2: exported: exported var ErrCacheMiss should have comment or be unexported (revive)
+	ErrCacheMiss            = errors.New("cache miss")
+	^
+cache/memory.go:30:6: exported: exported type MemCacheOption should have comment or be unexported (revive)
+type MemCacheOption struct {
+     ^
+cache/memory.go:34:1: exported: exported function NewMemoryCache should have comment or be unexported (revive)
+func NewMemoryCache(_ context.Context, opts ...MemCacheOption) Cache {
+^
+cache/memory.go:79:29: unused-parameter: parameter 'c' seems to be unused, consider removing or renaming it as _ (revive)
+func (m *memoryCache) Clear(c context.Context) error {
+                            ^
+cache/none.go:10:1: exported: exported function NewNoneCache should have comment or be unexported (revive)
+func NewNoneCache() Cache {
+^
+cache/none.go:14:1: receiver-naming: receiver name should not be an underscore, omit the name if it is unused (revive)
+func (_ *noneCache) Close() {
+}
+cache/none.go:17:1: receiver-naming: receiver name should not be an underscore, omit the name if it is unused (revive)
+func (_ *noneCache) GetBytes(_ context.Context, _ string) ([]byte, error) {
+	return nil, ErrCacheMiss
+}
+cache/none.go:21:1: receiver-naming: receiver name should not be an underscore, omit the name if it is unused (revive)
+func (_ *noneCache) Set(_ context.Context, _ string, _ any, _ time.Duration) error {
+	return nil
+}
+cache/none.go:25:27: unused-parameter: parameter 'c' seems to be unused, consider removing or renaming it as _ (revive)
+func (_ *noneCache) Clear(c context.Context) error {
+                          ^
+cache/none.go:40:35: unused-parameter: parameter 'ctx' seems to be unused, consider removing or renaming it as _ (revive)
+func (_ *noneCache) DeletePattern(ctx context.Context, pattern string) error {
+                                  ^
+cache/redis.go:16:1: exported: exported function NewRedisCache should have comment or be unexported (revive)
+func NewRedisCache(db *redis.Client, baseKey string) Cache {
+^
+pubsub/pubsub.go:1:1: package-comments: should have a package comment (revive)
+package pubsub
+^
+pubsub/pubsub.go:31:6: exported: exported type Handler should have comment or be unexported (revive)
+type Handler func(context.Context, []byte) error
+     ^
+pubsub/pubsub.go:33:6: exported: exported type Bus should have comment or be unexported (revive)
+type Bus interface {
+     ^
+pubsub/pubsub.go:49:6: exported: exported type BusOption should have comment or be unexported (revive)
+type BusOption func(*watermillBus)
+     ^
+pubsub/pubsub.go:51:1: exported: exported function WithTracer should have comment or be unexported (revive)
+func WithTracer(tracer trace.Tracer) BusOption {
+^
+pubsub/pubsub.go:55:1: exported: exported function WithPropagator should have comment or be unexported (revive)
+func WithPropagator(propagator propagation.TextMapPropagator) BusOption {
+^
+pubsub/pubsub.go:73:1: exported: exported function NewGoChannel should have comment or be unexported (revive)
+func NewGoChannel(logger watermill.LoggerAdapter, opts ...BusOption) Bus {
+^
+pubsub/pubsub.go:81:1: exported: exported function NewRedisStream should have comment or be unexported (revive)
+func NewRedisStream(client redis.UniversalClient, consumerGroup string, logger watermill.LoggerAdapter, opts ...BusOption) (Bus, error) {
+^
+pubsub/pubsub.go:114:1: exported: exported function NewKafka should have comment or be unexported (revive)
+func NewKafka(brokers []string, consumerGroup string, logger watermill.LoggerAdapter, opts ...BusOption) (Bus, error) {
+^
+pubsub/pubsub.go:145:1: exported: exported function NewPostgres should have comment or be unexported (revive)
+func NewPostgres(db *sql.DB, consumerGroup string, logger watermill.LoggerAdapter, opts ...BusOption) (Bus, error) {
+^
+pubsub/pubsub.go:185:1: exported: exported function NewRabbitMQ should have comment or be unexported (revive)
+func NewRabbitMQ(uri, consumerGroup string, logger watermill.LoggerAdapter, opts ...BusOption) (Bus, error) {
+^
+pubsub/pubsub.go:297:38: unused-parameter: parameter 'ctx' seems to be unused, consider removing or renaming it as _ (revive)
+func (b *watermillBus) handleMessage(ctx context.Context, topic string, msg *message.Message, handler Handler) error {
+                                     ^
+queries/db.go:1:1: package-comments: should have a package comment (revive)
+package queries
+^
+queries/db.go:8:6: exported: exported type DB should have comment or be unexported (revive)
+type DB interface {
+     ^
+queries/forward_zones.go:114:1: exported: exported function GetForwardZones should have comment or be unexported (revive)
+func GetForwardZones(ctx context.Context, db DB, limit, offset uint32) ([]models.ForwardZone, error) {
+^
+queries/forward_zones.go:133:1: exported: exported function GetForwardZone should have comment or be unexported (revive)
+func GetForwardZone(ctx context.Context, db DB, id string) (models.ForwardZone, error) {
+^
+queries/forward_zones.go:138:1: exported: exported function CreateForwardZone should have comment or be unexported (revive)
+func CreateForwardZone(ctx context.Context, db DB, name string, addresses []models.ForwardAddress) (models.ForwardZone, error) {
+^
+queries/forward_zones.go:147:1: exported: exported function UpdateForwardZone should have comment or be unexported (revive)
+func UpdateForwardZone(ctx context.Context, db DB, id, name string, addresses []models.ForwardAddress) (models.ForwardZone, error) {
+^
+queries/forward_zones.go:156:1: exported: exported function DeleteForwardZone should have comment or be unexported (revive)
+func DeleteForwardZone(ctx context.Context, db DB, id string) error {
+^
+queries/forward_zones.go:173:1: exported: exported function DetachForwardZoneFromZones should have comment or be unexported (revive)
+func DetachForwardZoneFromZones(ctx context.Context, db DB, id string) error {
+^
+queries/hijack.go:167:1: exported: exported function GetHijacks should have comment or be unexported (revive)
+func GetHijacks(ctx context.Context, db DB, limit, offset uint32) ([]models.HijackRecord, error) {
+^
+queries/hijack.go:199:1: exported: exported function GetHijack should have comment or be unexported (revive)
+func GetHijack(ctx context.Context, db DB, id string) (models.HijackRecord, error) {
+^
+queries/hijack.go:204:1: exported: exported function CreateHijack should have comment or be unexported (revive)
+func CreateHijack(
+^
+queries/hijack.go:230:1: exported: exported function UpdateHijack should have comment or be unexported (revive)
+func UpdateHijack(
+^
+queries/records.go:95:1: exported: exported function GetRecords should have comment or be unexported (revive)
+func GetRecords(ctx context.Context, db DB, zoneID string, limit, offset uint32) ([]models.DNSRecord, error) {
+^
+queries/records.go:114:1: exported: exported function GetRecord should have comment or be unexported (revive)
+func GetRecord(ctx context.Context, db DB, zoneID, id string) (models.DNSRecord, error) {
+^
+queries/records.go:119:1: exported: exported function CreateRecord should have comment or be unexported (revive)
+func CreateRecord(ctx context.Context, db DB, zoneID, name string, typ models.DNSRecordType, value string, ttl, priority *uint32) (models.DNSRecord, error) {
+^
+queries/records.go:134:1: exported: exported function UpdateRecord should have comment or be unexported (revive)
+func UpdateRecord(ctx context.Context, db DB, zoneID, id, name string, typ models.DNSRecordType, value string, ttl, priority *uint32) (models.DNSRecord, error) {
+^
+queries/records.go:150:1: exported: exported function DeleteRecord should have comment or be unexported (revive)
+func DeleteRecord(ctx context.Context, db DB, zoneID, id string) error {
+^
+queries/settings.go:40:1: exported: exported function GetSettings should have comment or be unexported (revive)
+func GetSettings(ctx context.Context, db DB) (models.Settings, error) {
+^
+queries/settings.go:45:1: exported: exported function UpdateSettings should have comment or be unexported (revive)
+func UpdateSettings(ctx context.Context, db DB, defaultForwardZoneID *string) (models.Settings, error) {
+^
+registry/registry.go:19:6: exported: exported type ServiceKind should have comment or be unexported (revive)
+type ServiceKind = string
+     ^
+registry/registry.go:22:2: exported: exported const ServiceKindAPI should have comment (or a comment on this block) or be unexported (revive)
+	ServiceKindAPI      = ServiceKind("api")
+	^
+registry/registry.go:28:6: exported: exported type Entry should have comment or be unexported (revive)
+type Entry struct {
+     ^
+registry/registry.go:36:6: exported: exported type RegistryConnection should have comment or be unexported (revive)
+type RegistryConnection struct {
+     ^
+registry/registry.go:50:1: exported: exported function NewRegistryConnection should have comment or be unexported (revive)
+func NewRegistryConnection(
+^
+registry/registry.go:222:1: exported: exported method RegistryConnection.OnDelete should have comment or be unexported (revive)
+func (c *RegistryConnection) OnDelete(ctx context.Context, dbIndex int, kind ServiceKind, callback func(string)) error {
+^
+109 issues:
+* funlen: 1
+* goconst: 19
+* mnd: 39
+* revive: 50

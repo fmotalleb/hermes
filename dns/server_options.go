@@ -37,6 +37,8 @@ func (p Protocol) String() string {
 	}
 }
 
+// ProtocolFromStr converts a protocol string ("udp", "tcp", "tls", "doh", etc.)
+// to its Protocol enum value. Returns an error for unrecognized values.
 func ProtocolFromStr(protoStr string) (Protocol, error) {
 	switch strings.ToLower(protoStr) {
 	case "udp":

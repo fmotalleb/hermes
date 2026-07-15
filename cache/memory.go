@@ -10,8 +10,11 @@ import (
 )
 
 var (
-	ErrCacheMiss            = errors.New("cache miss")
-	ErrStoreFailed          = errors.New("failed to store value: storage exception")
+	// ErrCacheMiss is returned when a requested key is not found in the cache.
+	ErrCacheMiss = errors.New("cache miss")
+	// ErrStoreFailed is returned when the underlying storage fails to persist a value.
+	ErrStoreFailed = errors.New("failed to store value: storage exception")
+	// ErrStoreUnsupportedType is returned when attempting to store a non-[]byte value.
 	ErrStoreUnsupportedType = errors.New("failed to store value: unsupported type")
 )
 
@@ -27,10 +30,14 @@ type entry struct {
 	hasExpiry bool
 }
 
+// MemCacheOption configures the in-memory cache.
 type MemCacheOption struct {
+	// MaxSize is the maximum number of entries the cache can hold.
 	MaxSize int
 }
 
+// NewMemoryCache creates an in-memory cache using an Otter concurrent cache.
+// Optional MemCacheOption values can be provided to configure limits.
 func NewMemoryCache(_ context.Context, opts ...MemCacheOption) Cache {
 	maxSize := defaultMaxSize
 	for _, opt := range opts {

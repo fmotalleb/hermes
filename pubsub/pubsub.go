@@ -1,3 +1,6 @@
+// Package pubsub provides a publish-subscribe messaging abstraction with
+// multiple backends: Go channels (in-process), Redis Streams, Kafka, PostgreSQL,
+// and RabbitMQ. It includes OpenTelemetry tracing for message propagation.
 package pubsub
 
 import (
@@ -28,8 +31,11 @@ const (
 	tracerName = "pubsub"
 )
 
+// Handler is a callback function that processes a pubsub message.
 type Handler func(context.Context, []byte) error
 
+// Bus defines the publish-subscribe interface. Implementations can use
+// Go channels, Redis Streams, Kafka, PostgreSQL, or RabbitMQ.
 type Bus interface {
 	Publish(context.Context, string, []byte) error
 	Subscribe(context.Context, string, Handler) error
@@ -46,12 +52,15 @@ type watermillBus struct {
 	propagator propagation.TextMapPropagator
 }
 
+// BusOption configures a watermill-based pubsub bus.
 type BusOption func(*watermillBus)
 
+// WithTracer sets the OpenTelemetry tracer for pubsub operations.
 func WithTracer(tracer trace.Tracer) BusOption {
 	return func(b *watermillBus) { b.tracer = tracer }
 }
 
+// WithPropagator sets the OpenTelemetry propagator for injecting/extracting trace context.
 func WithPropagator(propagator propagation.TextMapPropagator) BusOption {
 	return func(b *watermillBus) { b.propagator = propagator }
 }
@@ -70,6 +79,8 @@ func newBus(publisher message.Publisher, subscriber message.Subscriber, closers 
 	return b
 }
 
+// NewGoChannel creates an in-process pubsub bus backed by a Go channel.
+// Useful for single-process deployments where persistence is not required.
 func NewGoChannel(logger watermill.LoggerAdapter, opts ...BusOption) Bus {
 	if logger == nil {
 		logger = watermill.NopLogger{}
@@ -78,6 +89,8 @@ func NewGoChannel(logger watermill.LoggerAdapter, opts ...BusOption) Bus {
 	return newBus(channel, channel, []interface{ Close() error }{channel}, opts...)
 }
 
+// NewRedisStream creates a pubsub bus backed by Redis Streams.
+// consumerGroup enables consumer-group semantics; empty string disables it.
 func NewRedisStream(client redis.UniversalClient, consumerGroup string, logger watermill.LoggerAdapter, opts ...BusOption) (Bus, error) {
 	if client == nil {
 		return nil, errors.New("redis client is required")
@@ -111,6 +124,7 @@ func NewRedisStream(client redis.UniversalClient, consumerGroup string, logger w
 	return newBus(publisher, subscriber, []interface{ Close() error }{publisher, subscriber}, opts...), nil
 }
 
+// NewKafka creates a pubsub bus backed by Apache Kafka.
 func NewKafka(brokers []string, consumerGroup string, logger watermill.LoggerAdapter, opts ...BusOption) (Bus, error) {
 	if len(brokers) == 0 {
 		return nil, errors.New("missing kafka brokers")
@@ -142,6 +156,7 @@ func NewKafka(brokers []string, consumerGroup string, logger watermill.LoggerAda
 	return newBus(publisher, subscriber, []interface{ Close() error }{publisher, subscriber}, opts...), nil
 }
 
+// NewPostgres creates a pubsub bus backed by PostgreSQL LISTEN/NOTIFY via Watermill's SQL adapter.
 func NewPostgres(db *sql.DB, consumerGroup string, logger watermill.LoggerAdapter, opts ...BusOption) (Bus, error) {
 	if db == nil {
 		return nil, errors.New("postgres database is required")
@@ -182,6 +197,7 @@ func NewPostgres(db *sql.DB, consumerGroup string, logger watermill.LoggerAdapte
 	return newBus(publisher, subscriber, []interface{ Close() error }{publisher, subscriber}, opts...), nil
 }
 
+// NewRabbitMQ creates a pubsub bus backed by RabbitMQ.
 func NewRabbitMQ(uri, consumerGroup string, logger watermill.LoggerAdapter, opts ...BusOption) (Bus, error) {
 	if strings.TrimSpace(uri) == "" {
 		return nil, errors.New("missing rabbitmq uri")
@@ -294,7 +310,7 @@ func (b *watermillBus) Subscribe(ctx context.Context, topic string, handler Hand
 	}
 }
 
-func (b *watermillBus) handleMessage(ctx context.Context, topic string, msg *message.Message, handler Handler) error {
+func (b *watermillBus) handleMessage(_ context.Context, topic string, msg *message.Message, handler Handler) error {
 	// Extract trace context from message metadata
 	msgCtx := b.propagator.Extract(msg.Context(), messageCarrier{msg: msg})
 

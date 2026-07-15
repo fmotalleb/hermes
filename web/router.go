@@ -12,10 +12,13 @@ import (
 )
 
 type (
+	// HandlerFunc is a route handler that returns a value or an error.
 	HandlerFunc func(*Context) (any, error)
-	Middleware  func(http.Handler) http.Handler
+	// Middleware wraps an http.Handler to add cross-cutting behavior such as logging or auth.
+	Middleware func(http.Handler) http.Handler
 )
 
+// Router is a lightweight HTTP router with path parameters and middleware support.
 type Router struct {
 	routes       []route
 	middlewares  []Middleware
@@ -36,29 +39,36 @@ type routePart struct {
 	catchAll bool
 }
 
+// File represents a static file response with its content and content type.
 type File struct {
 	Content     []byte
 	ContentType string
 }
 
+// Responded is a sentinel value that tells the router the response has already been written.
 type Responded struct{}
 
+// HTTPError is an error with an associated HTTP status code and response body.
 type HTTPError interface {
 	error
 	StatusCode() int
 	Body() any
 }
 
+// NewRouter creates a new router with no routes or middlewares.
 func NewRouter() *Router {
 	return &Router{
 		notFound: http.NotFound,
 	}
 }
 
+// Use appends middlewares to the router's middleware chain.
 func (r *Router) Use(middlewares ...Middleware) {
 	r.middlewares = append(r.middlewares, middlewares...)
 }
 
+// Handle registers a route with the given HTTP method, URL pattern, and handler.
+// Patterns support path parameters: /users/{id}, /files/{path...}.
 func (r *Router) Handle(method, pattern string, handler HandlerFunc) {
 	if method != http.MethodOptions {
 		r.OPTIONS(pattern, nil)
@@ -71,22 +81,27 @@ func (r *Router) Handle(method, pattern string, handler HandlerFunc) {
 	})
 }
 
+// GET registers a handler for HTTP GET requests at the given pattern.
 func (r *Router) GET(pattern string, handler HandlerFunc) {
 	r.Handle(http.MethodGet, pattern, handler)
 }
 
+// POST registers a handler for HTTP POST requests at the given pattern.
 func (r *Router) POST(pattern string, handler HandlerFunc) {
 	r.Handle(http.MethodPost, pattern, handler)
 }
 
+// DELETE registers a handler for HTTP DELETE requests at the given pattern.
 func (r *Router) DELETE(pattern string, handler HandlerFunc) {
 	r.Handle(http.MethodDelete, pattern, handler)
 }
 
+// OPTIONS registers a handler for HTTP OPTIONS requests at the given pattern.
 func (r *Router) OPTIONS(pattern string, handler HandlerFunc) {
 	r.Handle(http.MethodOptions, pattern, handler)
 }
 
+// Group creates a sub-router with a path prefix and shared middlewares.
 func (r *Router) Group(prefix string, fn func(*Router)) {
 	child := &Router{
 		notFound:     r.notFound,
@@ -200,7 +215,7 @@ func matchRoute(parts []routePart, requestPath string) (map[string]string, bool)
 	return params, true
 }
 
-func writeResult(w http.ResponseWriter, req *http.Request, value any, err error) {
+func writeResult(w http.ResponseWriter, _ *http.Request, value any, err error) {
 	if err != nil {
 		writeError(w, err)
 		return

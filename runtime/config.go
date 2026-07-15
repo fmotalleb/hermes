@@ -11,6 +11,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// Config holds all configuration values loaded from environment variables.
 type Config struct {
 	// Per instance configuration
 	InstanceName string
@@ -54,6 +55,8 @@ type Config struct {
 	ProxyTimeout         time.Duration
 }
 
+// LoadConfig reads environment variables and returns a fully populated Config.
+// It panics if the .env file cannot be loaded.
 func LoadConfig() Config {
 	err := godotenv.Load()
 	if err != nil {

@@ -92,6 +92,7 @@ func scanRecord(row scanner) (models.DNSRecord, error) {
 	return record, nil
 }
 
+// GetRecords returns a paginated list of DNS records for a given zone, ordered by name, type, and value.
 func GetRecords(ctx context.Context, db DB, zoneID string, limit, offset uint32) ([]models.DNSRecord, error) {
 	rows, err := db.QueryContext(ctx, getRecordsQuery, zoneID, limit, offset)
 	if err != nil {
@@ -111,11 +112,13 @@ func GetRecords(ctx context.Context, db DB, zoneID string, limit, offset uint32)
 	return records, rows.Err()
 }
 
+// GetRecord returns a single DNS record by ID within the specified zone.
 func GetRecord(ctx context.Context, db DB, zoneID, id string) (models.DNSRecord, error) {
 	row := db.QueryRowContext(ctx, getRecordQuery, zoneID, id)
 	return scanRecord(row)
 }
 
+// CreateRecord inserts a new DNS record into the specified zone.
 func CreateRecord(ctx context.Context, db DB, zoneID, name string, typ models.DNSRecordType, value string, ttl, priority *uint32) (models.DNSRecord, error) {
 	row := db.QueryRowContext(
 		ctx,
@@ -131,6 +134,7 @@ func CreateRecord(ctx context.Context, db DB, zoneID, name string, typ models.DN
 	return scanRecord(row)
 }
 
+// UpdateRecord modifies an existing DNS record within the specified zone.
 func UpdateRecord(ctx context.Context, db DB, zoneID, id, name string, typ models.DNSRecordType, value string, ttl, priority *uint32) (models.DNSRecord, error) {
 	row := db.QueryRowContext(
 		ctx,
@@ -147,6 +151,7 @@ func UpdateRecord(ctx context.Context, db DB, zoneID, id, name string, typ model
 	return scanRecord(row)
 }
 
+// DeleteRecord removes a DNS record by ID from the specified zone. Returns sql.ErrNoRows if not found.
 func DeleteRecord(ctx context.Context, db DB, zoneID, id string) error {
 	result, err := db.ExecContext(ctx, deleteRecordQuery, zoneID, id)
 	if err != nil {

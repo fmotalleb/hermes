@@ -16,10 +16,13 @@ func apiRoute(name string) string {
 	return apiBasePath + name
 }
 
+// Migrator defines the interface for running database migrations.
 type Migrator interface {
 	Run(context.Context) error
 }
 
+// Register wires all API routes (zones, records, forward zones, hijacks, settings,
+// services, pubsub, metrics, migrations) onto the given router.
 func Register(router *web.Router, app *runtime.App, c cache.Cache, bus pubsub.Bus, migrator Migrator, metricsHandler http.Handler) {
 	handler := newHandler(newRepository(app.DB, c, bus, app.ServiceRegistry), migrator, metricsHandler, bus)
 

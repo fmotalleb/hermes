@@ -27,6 +27,7 @@ func (e entityNotFoundError) Error() string {
 func (e entityNotFoundError) StatusCode() int { return 404 }
 func (e entityNotFoundError) Body() any       { return e }
 
+// ErrEntityAlreadyExist is returned when attempting to create a resource that conflicts with an existing one.
 var ErrEntityAlreadyExist = entityAlreadyExistsError{}
 
 func normalizeCreateError(err error) error {

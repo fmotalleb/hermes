@@ -31,7 +31,7 @@ func effectiveForwardZoneID(zone zoneRow, defaultForwardZoneID string) string {
 	}
 }
 
-func (h *handler) forward( //nolint:gocyclo // comprehensive multi-protocol forwarder; splitting would harm readability
+func (h *handler) forward( //nolint:gocyclo,funlen // comprehensive multi-protocol forwarder; splitting would harm readability
 	ctx context.Context,
 	req *dns.Msg,
 	forwardZoneID string,

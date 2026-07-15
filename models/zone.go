@@ -2,6 +2,7 @@ package models
 
 import "time"
 
+// ZoneData represents a DNS zone with its forwarding policy and record count.
 type ZoneData struct {
 	ID            string        `json:"id"`
 	Name          string        `json:"name"`

@@ -164,6 +164,7 @@ func scanHijack(row scanner) (models.HijackRecord, error) {
 	return h, nil
 }
 
+// GetHijacks returns a paginated list of hijack rules ordered by name.
 func GetHijacks(ctx context.Context, db DB, limit, offset uint32) ([]models.HijackRecord, error) {
 	rows, err := db.QueryContext(ctx, getHijacksQuery, limit, offset)
 	if err != nil {
@@ -196,11 +197,13 @@ func GetHijacks(ctx context.Context, db DB, limit, offset uint32) ([]models.Hija
 	return out, rows.Err()
 }
 
+// GetHijack returns a single hijack rule by ID.
 func GetHijack(ctx context.Context, db DB, id string) (models.HijackRecord, error) {
 	row := db.QueryRowContext(ctx, getHijackQuery, id)
 	return scanHijack(row)
 }
 
+// CreateHijack inserts a new hijack rule.
 func CreateHijack(
 	ctx context.Context,
 	db DB,
@@ -227,6 +230,7 @@ func CreateHijack(
 	return scanHijack(row)
 }
 
+// UpdateHijack modifies an existing hijack rule.
 func UpdateHijack(
 	ctx context.Context,
 	db DB,
@@ -255,6 +259,7 @@ func UpdateHijack(
 	return scanHijack(row)
 }
 
+// DeleteHijack removes a hijack rule by ID. Returns sql.ErrNoRows if not found.
 func DeleteHijack(ctx context.Context, db DB, id string) error {
 	res, err := db.ExecContext(ctx, deleteHijackQuery, id)
 	if err != nil {
@@ -272,6 +277,7 @@ func DeleteHijack(ctx context.Context, db DB, id string) error {
 	return nil
 }
 
+// SearchHijack finds hijack rules whose name contains the given search string (case-insensitive).
 func SearchHijack(ctx context.Context, db DB, name string) ([]models.HijackRecord, error) {
 	rows, err := db.QueryContext(ctx, searchHijackQuery, name)
 	if err != nil {
@@ -305,6 +311,7 @@ func SearchHijack(ctx context.Context, db DB, name string) ([]models.HijackRecor
 	return out, rows.Err()
 }
 
+// HijackLookup finds the most specific hijack rule matching the given name and record type.
 func HijackLookup(ctx context.Context, db DB, name string, recordType models.DNSRecordType) (models.HijackRecord, error) {
 	row := db.QueryRowContext(ctx, hijackLookupQuery, name, recordType)
 	return scanHijack(row)

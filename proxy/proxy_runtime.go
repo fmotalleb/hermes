@@ -17,6 +17,8 @@ import (
 	"github.com/fmotalleb/hermes/queries"
 )
 
+// Proxy handles transparent proxying through HTTP and TLS/SNI routers,
+// with optional SOCKS5 upstream, zone-based access control, and cache invalidation.
 type Proxy struct {
 	ListenAddr string
 	HTTPPorts  []string

@@ -14,6 +14,8 @@ const (
 	defaultAdminPass = "admin"
 )
 
+// Middleware returns an HTTP middleware that enforces HTTP Basic Authentication
+// using the admin credentials from the configuration.
 func Middleware(cfg runtime.Config) web.Middleware {
 	if cfg.AdminNoAuth {
 		return func(next http.Handler) http.Handler { return next }
@@ -46,6 +48,7 @@ func Middleware(cfg runtime.Config) web.Middleware {
 	}
 }
 
+// DisabledFromEnv returns true if the environment variable value represents a truthy value.
 func DisabledFromEnv(v string) bool {
 	switch strings.ToLower(strings.TrimSpace(v)) {
 	case "y", "yes", "t", "true", "1":

@@ -23,7 +23,7 @@ func preRunFromArgs(cmd *cobra.Command) {
 	}
 }
 
-func registerPreRunFlags(cmd *cobra.Command) {
+func registerPreRunFlags(_ *cobra.Command) {
 	pf := rootCmd.PersistentFlags()
 	pf.Bool(migrateFlag, false, "run migration before running the API or DNS server")
 }

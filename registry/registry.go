@@ -16,15 +16,17 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// ServiceKind identifies a category of service in the registry.
 type ServiceKind = string
 
 const (
-	ServiceKindAPI      = ServiceKind("api")
-	ServiceKindProxy    = ServiceKind("proxy")
-	ServiceKindDNS      = ServiceKind("dns")
-	ServiceKindMigrator = ServiceKind("migrator")
+	ServiceKindAPI      = ServiceKind("api")      // REST API service.
+	ServiceKindProxy    = ServiceKind("proxy")    // Transparent proxy service.
+	ServiceKindDNS      = ServiceKind("dns")      // DNS resolver service.
+	ServiceKindMigrator = ServiceKind("migrator") // Database migration service.
 )
 
+// Entry represents a single registered service instance with its metadata and last-seen timestamp.
 type Entry struct {
 	ID       string         `json:"id"`
 	Kind     string         `json:"kind"`
@@ -33,6 +35,7 @@ type Entry struct {
 	LastSeen time.Time      `json:"lastSeen"`
 }
 
+// RegistryConnection manages a service instance's registration and heartbeat in Redis.
 type RegistryConnection struct {
 	redis          redis.UniversalClient
 	instanceID     string
@@ -47,6 +50,8 @@ type RegistryConnection struct {
 	mu     sync.RWMutex
 }
 
+// NewRegistryConnection creates a new registry connection for the given instance.
+// It does not start the heartbeat until Start is called.
 func NewRegistryConnection(
 	rdb redis.UniversalClient,
 	instanceID string,

@@ -17,6 +17,9 @@ import (
 	"github.com/fmotalleb/hermes/runtime"
 )
 
+// Serve starts the DNS server with the given runtime application, optional pubsub bus,
+// and server options. It configures caching, sets up the handler chain, subscribes to
+// cache invalidation events, and listens on the configured protocol(s).
 func Serve(ctx context.Context, app *runtime.App, bus pubsub.Bus, opts ...ServerOption) error { //nolint:gocyclo // comprehensive server bootstrap; splitting would harm readability
 	cfg := defaultServerConfig()
 	for _, opt := range opts {
@@ -41,7 +44,7 @@ func Serve(ctx context.Context, app *runtime.App, bus pubsub.Bus, opts ...Server
 	case "none":
 		c = cache.NewNoneCache()
 	default:
-		return fmt.Errorf("%w: %s", dnsCacheInvalidBackend, app.Config.DNSCacheBackend)
+		return fmt.Errorf("%w: %s", errDNSCacheInvalidBackend, app.Config.DNSCacheBackend)
 	}
 
 	cacheTypes := make([]uint16, len(app.Config.DNSCacheTypes))

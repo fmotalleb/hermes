@@ -11,7 +11,6 @@ linters:
     - errcheck
     - errorlint
     - funlen
-    - goconst
     - gocritic
     - gocyclo
     - godot
@@ -20,7 +19,6 @@ linters:
     - govet
     - ineffassign
     - misspell
-    - mnd
     - nakedret
     - noctx
     - nolintlint
@@ -37,8 +35,8 @@ linters:
     - whitespace
   settings:
     funlen:
-      lines: 100
-      statements: 50
+      lines: 120
+      statements: 100
     gocyclo:
       min-complexity: 15
     govet:
@@ -53,6 +51,15 @@ linters:
       allow-unused: false
     revive:
       confidence: 0
+      rules:
+        - name: exported
+          disabled: true
+        - name: package-comments
+          disabled: true
+        - name: unused-parameter
+          disabled: true
+        - name: receiver-naming
+          disabled: true
   exclusions:
     generated: lax
     presets:

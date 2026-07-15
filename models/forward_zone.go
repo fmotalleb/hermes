@@ -10,6 +10,7 @@ import (
 	"time"
 )
 
+// ForwardAddress represents a single upstream DNS server with protocol, address, and optional TLS/DoH parameters.
 type ForwardAddress struct {
 	Protocol      string `json:"protocol"` // udp, tcp, tls, https
 	Address       string `json:"address"`
@@ -77,6 +78,7 @@ func parseForwardAddress(raw string) (*ForwardAddress, error) {
 	return addr, nil
 }
 
+// UnmarshalJSON parses a forward address from its URL string representation (e.g. udp://1.1.1.1:53).
 func (f *ForwardAddress) UnmarshalJSON(data []byte) error {
 	var raw string
 
@@ -94,6 +96,7 @@ func (f *ForwardAddress) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON serializes the forward address back to its URL string representation.
 func (f ForwardAddress) MarshalJSON() ([]byte, error) {
 	scheme := f.Protocol
 
@@ -120,6 +123,7 @@ func (f ForwardAddress) MarshalJSON() ([]byte, error) {
 	return json.Marshal(out)
 }
 
+// ForwardZone defines a named collection of upstream DNS servers used for query forwarding.
 type ForwardZone struct {
 	ID        string           `json:"id"`
 	Name      string           `json:"name"`
@@ -129,10 +133,11 @@ type ForwardZone struct {
 	UpdatedAt time.Time        `json:"updated_at"`
 }
 
+// ForwardPolicy defines how a zone handles queries that don't match local records.
 type ForwardPolicy = string
 
 const (
-	ForwardPolicyNone    = ForwardPolicy("none")
-	ForwardPolicyCustom  = ForwardPolicy("custom")
-	ForwardPolicyDefault = ForwardPolicy("default")
+	ForwardPolicyNone    = ForwardPolicy("none")    // Never forward; return NXDOMAIN for unmatched queries.
+	ForwardPolicyCustom  = ForwardPolicy("custom")  // Forward using the zone-specific forward zone.
+	ForwardPolicyDefault = ForwardPolicy("default") // Forward using the global default forward zone.
 )

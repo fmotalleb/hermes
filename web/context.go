@@ -8,6 +8,8 @@ import (
 	"net/http"
 )
 
+// Context wraps an HTTP request with path parameters, request body binding,
+// and JSON response writing utilities.
 type Context struct {
 	context.Context
 

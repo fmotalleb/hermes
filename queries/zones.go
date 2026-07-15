@@ -109,6 +109,7 @@ func scanZone(row scanner) (models.ZoneData, error) {
 	return zone, nil
 }
 
+// GetZones returns a paginated list of zones ordered by name, each with its record count.
 func GetZones(ctx context.Context, db DB, limit, offset uint32) ([]models.ZoneData, error) {
 	var rows *sql.Rows
 	var err error
@@ -141,11 +142,13 @@ func GetZones(ctx context.Context, db DB, limit, offset uint32) ([]models.ZoneDa
 	return zones, rows.Err()
 }
 
+// GetZone returns a single zone by ID, including its record count.
 func GetZone(ctx context.Context, db DB, id string) (models.ZoneData, error) {
 	row := db.QueryRowContext(ctx, getZoneQuery, id)
 	return scanZone(row)
 }
 
+// CreateZone inserts a new DNS zone with the given name, forwarding policy, and optional TTL.
 func CreateZone(ctx context.Context, db DB, name, forwardPolicy string, forwardZoneID *string, ttl *uint32) (models.ZoneData, error) {
 	row := db.QueryRowContext(
 		ctx,
@@ -158,6 +161,7 @@ func CreateZone(ctx context.Context, db DB, name, forwardPolicy string, forwardZ
 	return scanZone(row)
 }
 
+// UpdateZone modifies an existing zone's name, forwarding policy, forward zone, and/or TTL.
 func UpdateZone(ctx context.Context, db DB, id, name, forwardPolicy string, forwardZoneID *string, ttl *uint32) (models.ZoneData, error) {
 	row := db.QueryRowContext(
 		ctx,
@@ -171,6 +175,7 @@ func UpdateZone(ctx context.Context, db DB, id, name, forwardPolicy string, forw
 	return scanZone(row)
 }
 
+// DeleteZone removes a zone by ID. Returns sql.ErrNoRows if not found.
 func DeleteZone(ctx context.Context, db DB, id string) error {
 	result, err := db.ExecContext(ctx, deleteZoneQuery, id)
 	if err != nil {

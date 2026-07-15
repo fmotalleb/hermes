@@ -111,6 +111,7 @@ func scanForwardZone(row scanner) (models.ForwardZone, error) {
 	return zone, nil
 }
 
+// GetForwardZones returns a paginated list of forward zones ordered by name.
 func GetForwardZones(ctx context.Context, db DB, limit, offset uint32) ([]models.ForwardZone, error) {
 	rows, err := db.QueryContext(ctx, getForwardZonesQuery, limit, offset)
 	if err != nil {
@@ -130,11 +131,13 @@ func GetForwardZones(ctx context.Context, db DB, limit, offset uint32) ([]models
 	return zones, rows.Err()
 }
 
+// GetForwardZone returns a single forward zone by ID.
 func GetForwardZone(ctx context.Context, db DB, id string) (models.ForwardZone, error) {
 	row := db.QueryRowContext(ctx, getForwardZoneQuery, id)
 	return scanForwardZone(row)
 }
 
+// CreateForwardZone inserts a new forward zone with the given name and upstream addresses.
 func CreateForwardZone(ctx context.Context, db DB, name string, addresses []models.ForwardAddress) (models.ForwardZone, error) {
 	buf, err := json.Marshal(addresses)
 	if err != nil {
@@ -144,6 +147,7 @@ func CreateForwardZone(ctx context.Context, db DB, name string, addresses []mode
 	return scanForwardZone(row)
 }
 
+// UpdateForwardZone updates the name and/or addresses of an existing forward zone.
 func UpdateForwardZone(ctx context.Context, db DB, id, name string, addresses []models.ForwardAddress) (models.ForwardZone, error) {
 	buf, err := json.Marshal(addresses)
 	if err != nil {
@@ -153,6 +157,7 @@ func UpdateForwardZone(ctx context.Context, db DB, id, name string, addresses []
 	return scanForwardZone(row)
 }
 
+// DeleteForwardZone removes a forward zone by ID. Returns sql.ErrNoRows if not found.
 func DeleteForwardZone(ctx context.Context, db DB, id string) error {
 	result, err := db.ExecContext(ctx, deleteForwardZoneQuery, id)
 	if err != nil {
@@ -170,6 +175,8 @@ func DeleteForwardZone(ctx context.Context, db DB, id string) error {
 	return nil
 }
 
+// DetachForwardZoneFromZones resets all zones referencing the given forward zone ID
+// to the 'none' forward policy, effectively detaching them without deletion.
 func DetachForwardZoneFromZones(ctx context.Context, db DB, id string) error {
 	_, err := db.ExecContext(ctx, detachForwardZoneFromZonesQuery, id)
 	return err

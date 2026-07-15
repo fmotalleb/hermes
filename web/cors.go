@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+// CorsOptions holds the configuration for CORS middleware.
 type CorsOptions struct {
 	Origins []string
 	Methods []string
@@ -13,26 +14,31 @@ type CorsOptions struct {
 	MaxAge  uint
 }
 
+// CorsOption configures a CorsOptions struct.
 type CorsOption func(*CorsOptions)
 
+// WithOrigins sets the allowed origins for CORS. Use "*" to allow all origins.
 func WithOrigins(origins ...string) CorsOption {
 	return func(o *CorsOptions) {
 		o.Origins = origins
 	}
 }
 
+// WithMethods sets the allowed HTTP methods for CORS.
 func WithMethods(methods ...string) CorsOption {
 	return func(o *CorsOptions) {
 		o.Methods = methods
 	}
 }
 
+// WithHeaders sets the allowed request headers for CORS.
 func WithHeaders(headers ...string) CorsOption {
 	return func(o *CorsOptions) {
 		o.Headers = headers
 	}
 }
 
+// WithMaxAge sets the CORS preflight cache duration in seconds.
 func WithMaxAge(seconds uint) CorsOption {
 	return func(o *CorsOptions) {
 		o.MaxAge = seconds
@@ -59,6 +65,7 @@ func defaultCorsOptions() CorsOptions {
 	}
 }
 
+// AllowCors enables CORS middleware on the router with the given options.
 func (r *Router) AllowCors(opts ...CorsOption) {
 	cfg := defaultCorsOptions()
 
