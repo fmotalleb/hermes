@@ -84,7 +84,7 @@ func New(ctx context.Context, kind string, logger *slog.Logger) (*App, error) {
 	db.SetMaxOpenConns(cfg.DBMaxOpen)
 	db.SetConnMaxLifetime(30 * time.Minute)
 
-	if err := db.PingContext(ctx); err != nil {
+	if err = db.PingContext(ctx); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("ping database: %w", err)
 	}
@@ -93,7 +93,7 @@ func New(ctx context.Context, kind string, logger *slog.Logger) (*App, error) {
 		Addr: cfg.RedisAddr,
 		DB:   cfg.RedisDB,
 	})
-	if err := redisClient.Ping(ctx).Err(); err != nil {
+	if err = redisClient.Ping(ctx).Err(); err != nil {
 		_ = db.Close()
 		_ = redisClient.Close()
 		return nil, fmt.Errorf("ping redis: %w", err)

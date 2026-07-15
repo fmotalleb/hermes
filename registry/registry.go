@@ -1,3 +1,6 @@
+// Package registry provides service discovery and health tracking via Redis.
+// Each service instance registers itself with a heartbeat and can discover
+// other instances of the same or different service kinds.
 package registry
 
 import (

@@ -39,7 +39,7 @@ func optimizeForwardZones() Migration {
 			for rows.Next() {
 				var id string
 				var addresses pq.StringArray
-				if err := rows.Scan(&id, &addresses); err != nil {
+				if err = rows.Scan(&id, &addresses); err != nil {
 					return err
 				}
 
@@ -57,6 +57,10 @@ func optimizeForwardZones() Migration {
 				if err != nil {
 					return err
 				}
+			}
+
+			if err := rows.Err(); err != nil {
+				return err
 			}
 
 			// 3. Drop old addresses and rename

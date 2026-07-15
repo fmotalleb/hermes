@@ -2,8 +2,6 @@ package queries
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 
 	"github.com/fmotalleb/hermes/models"
 )
@@ -49,11 +47,3 @@ func UpdateSettings(ctx context.Context, db DB, defaultForwardZoneID *string) (m
 	return scanSettings(row)
 }
 
-func ensureSettingsRow(ctx context.Context, db DB) error {
-	_, err := db.ExecContext(ctx, `INSERT INTO settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;`)
-	return err
-}
-
-func isSettingsMissing(err error) bool {
-	return errors.Is(err, sql.ErrNoRows)
-}

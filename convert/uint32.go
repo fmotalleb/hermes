@@ -1,3 +1,5 @@
+// Package convert provides utilities for converting string values to uint32,
+// with support for fallback defaults on empty or invalid input.
 package convert
 
 import (

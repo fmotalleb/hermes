@@ -16,7 +16,6 @@ func nxdomain(req *dns.Msg) *dns.Msg {
 func ownerName(zoneName, qname, recordName string) string {
 	recordName = normalizeDNSName(recordName)
 	zoneName = normalizeDNSName(zoneName)
-	qname = normalizeDNSName(qname)
 
 	switch recordName {
 	case "", "@", zoneName:

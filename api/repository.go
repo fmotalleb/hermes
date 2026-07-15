@@ -308,14 +308,6 @@ func (r *repository) getHijack(ctx context.Context, id string) (models.HijackRec
 	return queries.GetHijack(ctx, r.db, id)
 }
 
-func (r *repository) searchHijack(ctx context.Context, name string) ([]models.HijackRecord, error) {
-	return queries.SearchHijack(ctx, r.db, name)
-}
-
-func (r *repository) hijackLookup(ctx context.Context, name string, recordType models.DNSRecordType) (models.HijackRecord, error) {
-	return queries.HijackLookup(ctx, r.db, name, recordType)
-}
-
 func (r *repository) createHijack(ctx context.Context, req hijackRequest) (models.HijackRecord, error) {
 	record, err := queries.CreateHijack(
 		ctx,

@@ -1,3 +1,5 @@
+// Package web provides a lightweight HTTP router with path parameters,
+// middleware support, CORS handling, and JSON response utilities.
 package web
 
 import (

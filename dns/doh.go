@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/miekg/dns"
 	"golang.org/x/sync/errgroup"
@@ -17,9 +18,10 @@ func serveDoH(g *errgroup.Group, ctx interface{ Done() <-chan struct{} }, cfg *S
 	mux.HandleFunc(cfg.httpPath, dohHandler(h))
 
 	httpSrv := &http.Server{
-		Addr:      cfg.listenAddr,
-		Handler:   mux,
-		TLSConfig: cfg.tlsConfig,
+		Addr:              cfg.listenAddr,
+		Handler:           mux,
+		TLSConfig:         cfg.tlsConfig,
+		ReadHeaderTimeout: 30 * time.Second,
 	}
 
 	g.Go(func() error {

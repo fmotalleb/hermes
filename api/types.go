@@ -49,8 +49,6 @@ func validRecordType(t models.DNSRecordType) bool {
 	}
 }
 
-var errInvalidHijackPolicy = errors.New("invalid hijack policy")
-
 type hijackRequest struct {
 	Name          string               `json:"name"`
 	Value         string               `json:"value"`
