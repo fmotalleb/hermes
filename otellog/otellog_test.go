@@ -12,7 +12,10 @@ import (
 	"time"
 
 	"github.com/fmotalleb/go-tools/log"
+	"go.opentelemetry.io/contrib/bridges/otelzap"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -134,6 +137,85 @@ func TestLoggingExporterSurfacesFailures(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "boom") {
 		t.Fatalf("expected underlying error in output, got %q", buf.String())
+	}
+}
+
+// captureExporter records every exported log record for inspection.
+type captureExporter struct {
+	mu      sync.Mutex
+	records []sdklog.Record
+}
+
+func (e *captureExporter) Export(_ context.Context, records []sdklog.Record) error {
+	e.mu.Lock()
+	e.records = append(e.records, records...)
+	e.mu.Unlock()
+	return nil
+}
+func (e *captureExporter) Shutdown(context.Context) error { return nil }
+func (e *captureExporter) ForceFlush(context.Context) error {
+	return nil
+}
+
+// TestTraceContextFieldAttachesTraceID verifies that a log emitted through a
+// logger carrying TraceContextField ends up with the span's native trace id and
+// span id on the exported OTLP record.
+func TestTraceContextFieldAttachesTraceID(t *testing.T) {
+	cap := &captureExporter{}
+	provider := sdklog.NewLoggerProvider(
+		sdklog.WithProcessor(sdklog.NewSimpleProcessor(cap)),
+	)
+	defer func() { _ = provider.Shutdown(context.Background()) }()
+
+	core := otelzap.NewCore("test", otelzap.WithLoggerProvider(provider))
+
+	// The console sink must never see the trace-context field (strip core).
+	var console bytes.Buffer
+	consoleCore := zapcore.NewCore(
+		zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
+		zapcore.AddSync(&console),
+		zapcore.DebugLevel,
+	)
+	logger := zap.New(zapcore.NewTee(&stripContextCore{Core: consoleCore}, core))
+
+	tp := sdktrace.NewTracerProvider()
+	defer func() { _ = tp.Shutdown(context.Background()) }()
+	_, span := tp.Tracer("test").Start(context.Background(), "op")
+
+	ctx := trace.ContextWithSpan(context.Background(), span)
+	// Only the logger that carries TraceContextField should correlate with the
+	// span; a plain logger must stay uncorrelated.
+	logger.With(TraceContextField(ctx)).Info("with trace")
+	logger.Info("without trace")
+	span.End()
+
+	if err := provider.ForceFlush(context.Background()); err != nil {
+		t.Fatalf("flush: %v", err)
+	}
+
+	cap.mu.Lock()
+	defer cap.mu.Unlock()
+	if len(cap.records) != 2 {
+		t.Fatalf("expected 2 records, got %d", len(cap.records))
+	}
+
+	var traced, untraced bool
+	for _, r := range cap.records {
+		switch r.Body().AsString() {
+		case "with trace":
+			traced = r.TraceID() == span.SpanContext().TraceID()
+		case "without trace":
+			untraced = r.TraceID().IsValid()
+		}
+	}
+	if !traced {
+		t.Fatal("expected record to carry the span's native trace id")
+	}
+	if untraced {
+		t.Fatal("expected record without context field to have no trace id")
+	}
+	if strings.Contains(console.String(), "trace.context") {
+		t.Fatalf("console output must not contain the trace-context field:\n%s", console.String())
 	}
 }
 

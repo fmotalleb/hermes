@@ -49,7 +49,12 @@ type Config struct {
 // when the application exits so pending logs are flushed.
 func Integrate(ctx context.Context, cfg Config) (context.Context, *sdklog.LoggerProvider, error) {
 	if strings.TrimSpace(cfg.URL) == "" {
-		return ctx, nil, nil
+		// No OTLP export, but still keep trace-context fields (see
+		// TraceContextField) out of the console output.
+		logger := log.Of(ctx).WithOptions(zap.WrapCore(func(existing zapcore.Core) zapcore.Core {
+			return &stripContextCore{Core: existing}
+		}))
+		return log.WithLogger(ctx, logger), nil, nil
 	}
 
 	otlpExporter, err := otlploghttp.New(ctx, exporterOptions(cfg)...)
@@ -72,7 +77,10 @@ func Integrate(ctx context.Context, cfg Config) (context.Context, *sdklog.Logger
 		otelzap.WithLoggerProvider(provider),
 	)
 	logger := log.Of(ctx).WithOptions(zap.WrapCore(func(existing zapcore.Core) zapcore.Core {
-		return zapcore.NewTee(existing, core)
+		// Trace-context fields (see TraceContextField) are consumed by the
+		// otelzap core to correlate records with traces; strip them from every
+		// other sink so console output stays clean.
+		return zapcore.NewTee(&stripContextCore{Core: existing}, core)
 	}))
 
 	return log.WithLogger(ctx, logger), provider, nil
@@ -102,6 +110,47 @@ func exporterOptions(cfg Config) []otlploghttp.Option {
 		opts = append(opts, otlploghttp.WithCompression(otlploghttp.GzipCompression))
 	}
 	return opts
+}
+
+// TraceContextField returns a zap field carrying ctx so the otelzap bridge uses
+// it as the emit context and the OTLP SDK attaches the active span's trace
+// context (trace id, span id, flags) to every exported record. Attach it to a
+// request-scoped logger (e.g. via With) once per request.
+func TraceContextField(ctx context.Context) zap.Field {
+	return zap.Field{Key: "trace.context", Type: zapcore.ReflectType, Interface: ctx}
+}
+
+// stripContextCore filters fields whose value is a context.Context (see
+// TraceContextField) so non-OTLP sinks never encode them. The otelzap core in
+// the same tee still sees them and uses them for trace correlation.
+type stripContextCore struct {
+	zapcore.Core
+}
+
+func (c *stripContextCore) Write(ent zapcore.Entry, fields []zapcore.Field) error {
+	return c.Core.Write(ent, withoutContextFields(fields))
+}
+
+func (c *stripContextCore) With(fields []zapcore.Field) zapcore.Core {
+	return &stripContextCore{Core: c.Core.With(withoutContextFields(fields))}
+}
+
+// withoutContextFields returns fields minus any context.Context-typed values.
+// It avoids allocating when no such field is present (the common case).
+func withoutContextFields(fields []zapcore.Field) []zapcore.Field {
+	for _, f := range fields {
+		if _, ok := f.Interface.(context.Context); ok {
+			out := make([]zapcore.Field, 0, len(fields)-1)
+			for _, g := range fields {
+				if _, ok := g.Interface.(context.Context); ok {
+					continue
+				}
+				out = append(out, g)
+			}
+			return out
+		}
+	}
+	return fields
 }
 
 // loggingExporter wraps an sdklog.Exporter and reports export failures through

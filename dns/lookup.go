@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/fmotalleb/hermes/models"
+	"github.com/fmotalleb/hermes/otellog"
 )
 
 func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
@@ -42,7 +43,9 @@ func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		attribute.Int("type", int(q.Qtype)),
 	))
 
-	logger := h.log()
+	// Attach the query's span context so exported OTLP log records carry the
+	// native trace id and span id for correlation.
+	logger := h.log().With(otellog.TraceContextField(ctx))
 	typeStr := dns.Type(q.Qtype).String()
 
 	// Build the query fields lazily: Check returns nil when debug is disabled,

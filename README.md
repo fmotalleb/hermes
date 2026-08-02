@@ -98,6 +98,8 @@ Key environment variables:
 | `LOG_MAX_REQUEST_SIZE` | `64 MiB` | Max OTLP log request body size. |
 | `LOG_COMPRESSION` | `` | OTLP log request compression; set to `gzip` to enable. |
 
+Request-scoped logs (HTTP access logs, API handler logs, DNS query logs) carry the active span's trace context, so exported log records are correlated with traces by trace id/span id. The raw trace id is also attached as a `trace_id` field on request logs.
+
 ### Running with Docker Compose
 
 ```bash

@@ -17,6 +17,8 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+
+	"github.com/fmotalleb/hermes/otellog"
 )
 
 type (
@@ -100,6 +102,9 @@ func (r *Router) RequestLogger() {
 			fields := []zap.Field{zap.String("request_id", requestID)}
 			if sc := trace.SpanFromContext(ctx).SpanContext(); sc.IsValid() {
 				fields = append(fields, zap.String("trace_id", sc.TraceID().String()))
+				// Carry the span context so OTLP log records are correlated with
+				// the request's trace natively (trace id + span id on the record).
+				fields = append(fields, otellog.TraceContextField(ctx))
 			}
 			ctx = log.WithLogger(ctx, logger.With(fields...))
 			req = req.WithContext(ctx)

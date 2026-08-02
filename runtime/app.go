@@ -74,27 +74,26 @@ func New(ctx context.Context, kind string) (*App, error) {
 
 	// OTEL log export: when LOG_URL is set, tee the context logger to the
 	// configured collector so every record emitted through log.FromContext is
-	// exported as well.
+	// exported as well. Integrate is called unconditionally so the console core
+	// is always wrapped to keep trace-context fields out of plain output.
 	var logProvider *sdklog.LoggerProvider
-	if strings.TrimSpace(cfg.LogURL) != "" {
-		var headers map[string]string
-		if headers, err = parseOTLPHeaders(cfg.LogHeaders); err != nil {
-			return nil, fmt.Errorf("parse log headers: %w", err)
-		}
-		if ctx, logProvider, err = otellog.Integrate(ctx, otellog.Config{
-			URL:              cfg.LogURL,
-			Headers:          headers,
-			QueueSize:        cfg.LogQueueSize,
-			ExportInterval:   cfg.LogExportInterval,
-			ExportTimeout:    cfg.LogExportTimeout,
-			MaxBatchSize:     cfg.LogMaxBatchSize,
-			ExportBufferSize: cfg.LogExportBufferSize,
-			ExporterTimeout:  cfg.LogExporterTimeout,
-			MaxRequestSize:   cfg.LogMaxRequestSize,
-			Compression:      cfg.LogCompression,
-		}); err != nil {
-			return nil, fmt.Errorf("integrate otlp logging: %w", err)
-		}
+	var headers map[string]string
+	if headers, err = parseOTLPHeaders(cfg.LogHeaders); err != nil {
+		return nil, fmt.Errorf("parse log headers: %w", err)
+	}
+	if ctx, logProvider, err = otellog.Integrate(ctx, otellog.Config{
+		URL:              cfg.LogURL,
+		Headers:          headers,
+		QueueSize:        cfg.LogQueueSize,
+		ExportInterval:   cfg.LogExportInterval,
+		ExportTimeout:    cfg.LogExportTimeout,
+		MaxBatchSize:     cfg.LogMaxBatchSize,
+		ExportBufferSize: cfg.LogExportBufferSize,
+		ExporterTimeout:  cfg.LogExporterTimeout,
+		MaxRequestSize:   cfg.LogMaxRequestSize,
+		Compression:      cfg.LogCompression,
+	}); err != nil {
+		return nil, fmt.Errorf("integrate otlp logging: %w", err)
 	}
 
 	logger := log.Of(ctx)
