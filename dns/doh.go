@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -13,7 +14,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func serveDoH(g *errgroup.Group, ctx interface{ Done() <-chan struct{} }, cfg *ServerConfig, h dns.Handler) {
+func serveDoH(g *errgroup.Group, ctx context.Context, cfg *ServerConfig, h dns.Handler) {
 	mux := http.NewServeMux()
 	mux.HandleFunc(cfg.httpPath, dohHandler(h))
 
@@ -22,6 +23,9 @@ func serveDoH(g *errgroup.Group, ctx interface{ Done() <-chan struct{} }, cfg *S
 		Handler:           mux,
 		TLSConfig:         cfg.tlsConfig,
 		ReadHeaderTimeout: 30 * time.Second,
+		BaseContext: func(_ net.Listener) context.Context {
+			return ctx
+		},
 	}
 
 	g.Go(func() error {

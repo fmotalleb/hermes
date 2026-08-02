@@ -37,6 +37,8 @@ type Config struct {
 	TracerURL           string
 	TracerHeaders       string
 	TracerRatio         float64
+	LogURL              string
+	LogHeaders          string
 	PubSubBackend       string
 
 	// DNS specific section
@@ -93,6 +95,10 @@ func LoadConfig() Config {
 		TracerURL:     env.Or("TRACER_URL", ""),
 		TracerHeaders: env.Or("TRACER_HEADERS", ""),
 		TracerRatio:   env.Float64Or("TRACER_RATIO", 1),
+
+		// OTEL log export
+		LogURL:     env.Or("LOG_URL", ""),
+		LogHeaders: env.Or("LOG_HEADERS", ""),
 
 		// DNS
 		DNSCacheBackend: env.Or("DNS_CACHE_BACKEND", "memory"),

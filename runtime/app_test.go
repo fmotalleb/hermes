@@ -125,7 +125,7 @@ func TestHTTPTraceExporterHeaders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse endpoint: %v", err)
 	}
-	ep.headers, err = parseTracerHeaders(`{"X-Api-Key":"secret"}`)
+	ep.headers, err = parseOTLPHeaders(`{"X-Api-Key":"secret"}`)
 	if err != nil {
 		t.Fatalf("parse headers: %v", err)
 	}
@@ -157,7 +157,7 @@ func TestHTTPTraceExporterHeaders(t *testing.T) {
 	}
 }
 
-func TestParseTracerHeaders(t *testing.T) {
+func TestParseOTLPHeaders(t *testing.T) {
 	cases := []struct {
 		name    string
 		raw     string
@@ -183,7 +183,7 @@ func TestParseTracerHeaders(t *testing.T) {
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := parseTracerHeaders(tt.raw)
+			got, err := parseOTLPHeaders(tt.raw)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatalf("expected error, got %v", got)

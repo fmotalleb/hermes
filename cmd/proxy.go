@@ -43,7 +43,7 @@ var proxyCmd = &cobra.Command{
 			cache.NewMemoryCache(ctx, cache.MemCacheOption{MaxSize: 10_000}),
 			app.DB,
 			bus,
-			log.FromContext(ctx).Named("proxy"),
+			log.FromContext(app.Context()).Named("proxy"),
 		)
 		if err != nil {
 			return err

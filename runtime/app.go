@@ -28,6 +28,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/propagation"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -36,6 +37,9 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
+	gtlog "github.com/fmotalleb/go-tools/log"
+
+	otellog "github.com/fmotalleb/hermes/log"
 	"github.com/fmotalleb/hermes/registry"
 )
 
@@ -49,7 +53,10 @@ type App struct {
 
 	TraceProvider  *sdktrace.TracerProvider
 	MeterProvider  *metric.MeterProvider
+	LogProvider    *sdklog.LoggerProvider
 	MetricsHandler http.Handler
+
+	ctx context.Context
 
 	httpServer    *http.Server
 	metricsServer *http.Server
@@ -62,12 +69,31 @@ type App struct {
 func New(ctx context.Context, kind string, logger *slog.Logger) (*App, error) {
 	var id uuid.UUID
 	var err error
+	var logProvider *sdklog.LoggerProvider
 	if id, err = uuid.NewV7(); err != nil {
 		return nil, err
 	}
 	cfg := LoadConfig()
 	if logger == nil {
 		logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	}
+
+	// OTEL log export: attach a zap logger to the context and bridge it to the
+	// configured collector, so services logging through log.FromContext also
+	// export to OTLP when LOG_URL is set.
+	if strings.TrimSpace(cfg.LogURL) != "" {
+		if ctx, err = gtlog.WithNewLogger(ctx, func(b *gtlog.Builder) *gtlog.Builder {
+			return b.Name("hermes")
+		}); err != nil {
+			return nil, fmt.Errorf("create context logger: %w", err)
+		}
+		var headers map[string]string
+		if headers, err = parseOTLPHeaders(cfg.LogHeaders); err != nil {
+			return nil, fmt.Errorf("parse log headers: %w", err)
+		}
+		if ctx, logProvider, err = otellog.Integrate(ctx, cfg.LogURL, headers); err != nil {
+			return nil, fmt.Errorf("integrate otlp logging: %w", err)
+		}
 	}
 
 	driverName, err := otelsql.Register(
@@ -138,9 +164,17 @@ func New(ctx context.Context, kind string, logger *slog.Logger) (*App, error) {
 		Redis:           redisClient,
 		TraceProvider:   traceProvider,
 		MeterProvider:   meterProvider,
+		LogProvider:     logProvider,
 		MetricsHandler:  metricsHandler,
+		ctx:             ctx,
 		ServiceRegistry: serviceRegistry,
 	}, nil
+}
+
+// Context returns the application context, which carries the configured zap
+// logger (see log.FromContext) and any other values attached during bootstrap.
+func (a *App) Context() context.Context {
+	return a.ctx
 }
 
 func (a *App) ID() uuid.UUID {
@@ -161,6 +195,9 @@ func (a *App) Close(ctx context.Context) error {
 	if a.MeterProvider != nil {
 		errs = append(errs, a.MeterProvider.Shutdown(ctx))
 	}
+	if a.LogProvider != nil {
+		errs = append(errs, a.LogProvider.Shutdown(ctx))
+	}
 	if a.Redis != nil {
 		errs = append(errs, a.Redis.Close())
 	}
@@ -180,6 +217,9 @@ func (a *App) StartHTTPServer(ctx context.Context, handler http.Handler) error {
 		Addr:              addr,
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
+		BaseContext: func(_ net.Listener) context.Context {
+			return ctx
+		},
 	}
 
 	go func() { //nolint:gosec // shutdown needs fresh context; parent is already canceled at this point
@@ -207,6 +247,9 @@ func (a *App) StartMetricsServer(ctx context.Context, exporter http.Handler) err
 		Addr:              addr,
 		Handler:           exporter,
 		ReadHeaderTimeout: 5 * time.Second,
+		BaseContext: func(_ net.Listener) context.Context {
+			return ctx
+		},
 	}
 
 	go func() { //nolint:gosec // shutdown needs fresh context; parent is already canceled at this point
@@ -280,7 +323,7 @@ func newTraceExporter(ctx context.Context, raw, rawHeaders string) (sdktrace.Spa
 	if err != nil {
 		return nil, err
 	}
-	if ep.headers, err = parseTracerHeaders(rawHeaders); err != nil {
+	if ep.headers, err = parseOTLPHeaders(rawHeaders); err != nil {
 		return nil, err
 	}
 
@@ -370,11 +413,12 @@ func parseTraceEndpoint(raw string) (traceEndpoint, error) {
 	return ep, nil
 }
 
-// parseTracerHeaders parses the TRACER_HEADERS value, either as a JSON object
-// of string headers, e.g. `{"api-key":"abc","x-tenant":"42"}`, or as the
-// legacy comma-separated key=value pairs, e.g. "api-key=abc,x-tenant=42". An
-// empty value yields no headers; malformed input is an error.
-func parseTracerHeaders(raw string) (map[string]string, error) {
+// parseOTLPHeaders parses an OTLP header configuration value (TRACER_HEADERS
+// or LOG_HEADERS), either as a JSON object of string headers, e.g.
+// `{"api-key":"abc","x-tenant":"42"}`, or as the legacy comma-separated
+// key=value pairs, e.g. "api-key=abc,x-tenant=42". An empty value yields no
+// headers; malformed input is an error.
+func parseOTLPHeaders(raw string) (map[string]string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return map[string]string{}, nil
@@ -383,7 +427,7 @@ func parseTracerHeaders(raw string) (map[string]string, error) {
 	if strings.HasPrefix(raw, "{") {
 		var headers map[string]string
 		if err := json.Unmarshal([]byte(raw), &headers); err != nil {
-			return nil, fmt.Errorf("parse tracer headers as json: %w", err)
+			return nil, fmt.Errorf("parse otlp headers as json: %w", err)
 		}
 		return headers, nil
 	}
@@ -397,7 +441,7 @@ func parseTracerHeaders(raw string) (map[string]string, error) {
 		key, value, ok := strings.Cut(pair, "=")
 		key = strings.TrimSpace(key)
 		if !ok || key == "" {
-			return nil, fmt.Errorf("invalid tracer header %q (want key=value or json object)", pair)
+			return nil, fmt.Errorf("invalid otlp header %q (want key=value or json object)", pair)
 		}
 		headers[key] = strings.TrimSpace(value)
 	}
