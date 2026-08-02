@@ -17,11 +17,11 @@ import (
 var errSNIMissing = errors.New("SNI missing in ClientHello")
 
 func (p *Proxy) serveSNIRouter(ctx context.Context, addr string) error {
-	logger := log.FromContext(ctx).Named("proxy.sni_router").
-		With(
-			zap.String("router", "sni"),
-			zap.String("listen", addr),
-		)
+	ctx, logger := log.AsNamedChild(ctx, "proxy.sni_router")
+	logger = logger.With(
+		zap.String("router", "sni"),
+		zap.String("listen", addr),
+	)
 
 	addrPort, err := netip.ParseAddrPort(addr)
 	if err != nil {

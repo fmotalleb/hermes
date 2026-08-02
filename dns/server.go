@@ -29,7 +29,7 @@ func Serve(ctx context.Context, app *runtime.App, bus pubsub.Bus, opts ...Server
 		}
 	}
 
-	logger := log.FromContext(ctx).Named("dns")
+	ctx, logger := log.AsNamedChild(ctx, "dns")
 	store := &store{
 		db:       app.DB,
 		logger:   logger,

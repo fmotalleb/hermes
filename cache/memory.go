@@ -55,9 +55,9 @@ func NewMemoryCache(_ context.Context, opts ...MemCacheOption) Cache {
 		MaximumSize: maxSize,
 	})
 
-	return &memoryCache{
+	return withLogging(&memoryCache{
 		storage: storage,
-	}
+	})
 }
 
 func (m *memoryCache) GetBytes(_ context.Context, key string) ([]byte, error) {

@@ -67,7 +67,7 @@ func (r *repository) invalidateZonesCache(ctx context.Context) {
 		return
 	}
 
-	logger := log.FromContext(ctx).Named("api.repository")
+	ctx, logger := log.AsNamedChild(ctx, "repository")
 	version := r.zonesCacheVersion(ctx) + 1
 	buf, err := json.Marshal(version)
 	if err != nil {
@@ -84,8 +84,9 @@ func (r *repository) invalidateDNSCache(ctx context.Context) {
 	if r.pubsub == nil {
 		return
 	}
+	ctx, logger := log.AsNamedChild(ctx, "repository")
 	if err := r.pubsub.Publish(ctx, dns.DNSCacheInvalidTopic, []byte{}); err != nil {
-		log.FromContext(ctx).Named("api.repository").Debug("failed to publish dns cache invalidation", zap.Error(err))
+		logger.Debug("failed to publish dns cache invalidation", zap.Error(err))
 	}
 }
 

@@ -22,7 +22,7 @@ var proxyCmd = &cobra.Command{
 		ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
 		defer stop()
 
-		app, err := runtime.New(ctx, registry.ServiceKindProxy, logger())
+		app, err := runtime.New(ctx, registry.ServiceKindProxy)
 		if err != nil {
 			return err
 		}
@@ -34,6 +34,7 @@ var proxyCmd = &cobra.Command{
 		}
 		defer bus.Close()
 
+		_, logger := log.AsNamedChild(app.Context(), "proxy")
 		p, err := proxy.NewProxy(
 			app.Config.ProxyListenAddr,
 			app.Config.ProxyServerHTTPPorts,
@@ -43,7 +44,7 @@ var proxyCmd = &cobra.Command{
 			cache.NewMemoryCache(ctx, cache.MemCacheOption{MaxSize: 10_000}),
 			app.DB,
 			bus,
-			log.FromContext(app.Context()).Named("proxy"),
+			logger,
 		)
 		if err != nil {
 			return err
@@ -54,7 +55,9 @@ var proxyCmd = &cobra.Command{
 			return app.StartMetricsServer(ctx, app.MetricsHandler)
 		})
 		eg.Go(func() error {
-			return p.Serve(ctx)
+			// app.Context() carries the context logger so the proxy's routers
+			// can derive their named children from it.
+			return p.Serve(app.Context())
 		})
 		return eg.Wait()
 	},

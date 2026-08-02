@@ -8,11 +8,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -28,19 +26,18 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/propagation"
-	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
-	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
-	gtlog "github.com/fmotalleb/go-tools/log"
+	"github.com/fmotalleb/go-tools/log"
 
-	otellog "github.com/fmotalleb/hermes/log"
+	"github.com/fmotalleb/hermes/otellog"
 	"github.com/fmotalleb/hermes/registry"
 )
 
@@ -48,13 +45,11 @@ import (
 type App struct {
 	id     uuid.UUID
 	Config Config
-	Logger *slog.Logger
 	DB     *sql.DB
 	Redis  *redis.Client
 
 	TraceProvider  *sdktrace.TracerProvider
 	MeterProvider  *metric.MeterProvider
-	LogProvider    *sdklog.LoggerProvider
 	MetricsHandler http.Handler
 
 	ctx context.Context
@@ -67,26 +62,13 @@ type App struct {
 
 // New creates and initializes a new App instance.
 // It connects to the database and Redis, configures OpenTelemetry, and starts the service registry heartbeat.
-func New(ctx context.Context, kind string, logger *slog.Logger) (*App, error) {
+func New(ctx context.Context, kind string) (*App, error) {
 	var id uuid.UUID
 	var err error
-	var logProvider *sdklog.LoggerProvider
 	if id, err = uuid.NewV7(); err != nil {
 		return nil, err
 	}
 	cfg := LoadConfig()
-	if logger == nil {
-		logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
-	}
-
-	// Attach a zap logger to the context so every component can log through
-	// log.FromContext(ctx), even when OTLP log export is disabled. The level
-	// mirrors the slog logger used for startup logs (the --log-level flag).
-	if ctx, err = gtlog.WithNewLogger(ctx, func(b *gtlog.Builder) *gtlog.Builder {
-		return b.Name("hermes").LevelValue(logLevelFromSlog(logger))
-	}); err != nil {
-		return nil, fmt.Errorf("create context logger: %w", err)
-	}
 
 	// OTEL log export: when LOG_URL is set, tee the context logger to the
 	// configured collector so every record emitted through log.FromContext is
@@ -96,11 +78,12 @@ func New(ctx context.Context, kind string, logger *slog.Logger) (*App, error) {
 		if headers, err = parseOTLPHeaders(cfg.LogHeaders); err != nil {
 			return nil, fmt.Errorf("parse log headers: %w", err)
 		}
-		if ctx, logProvider, err = otellog.Integrate(ctx, cfg.LogURL, headers); err != nil {
+		if ctx, err = otellog.Integrate(ctx, cfg.LogURL, headers); err != nil {
 			return nil, fmt.Errorf("integrate otlp logging: %w", err)
 		}
 	}
 
+	logger := log.Of(ctx)
 	driverName, err := otelsql.Register(
 		"postgres",
 		otelsql.WithAttributes(
@@ -139,7 +122,7 @@ func New(ctx context.Context, kind string, logger *slog.Logger) (*App, error) {
 		return nil, fmt.Errorf("ping redis: %w", err)
 	}
 
-	traceProvider, meterProvider, metricsHandler, err := setupTelemetry(ctx, cfg, logger)
+	traceProvider, meterProvider, metricsHandler, err := setupTelemetry(ctx, cfg)
 	if err != nil {
 		_ = db.Close()
 		_ = redisClient.Close()
@@ -164,12 +147,10 @@ func New(ctx context.Context, kind string, logger *slog.Logger) (*App, error) {
 	return &App{
 		id:              id,
 		Config:          cfg,
-		Logger:          logger,
 		DB:              db,
 		Redis:           redisClient,
 		TraceProvider:   traceProvider,
 		MeterProvider:   meterProvider,
-		LogProvider:     logProvider,
 		MetricsHandler:  metricsHandler,
 		ctx:             ctx,
 		ServiceRegistry: serviceRegistry,
@@ -180,21 +161,6 @@ func New(ctx context.Context, kind string, logger *slog.Logger) (*App, error) {
 // logger (see log.FromContext) and any other values attached during bootstrap.
 func (a *App) Context() context.Context {
 	return a.ctx
-}
-
-// logLevelFromSlog maps the most verbose level enabled on logger to the
-// equivalent zap level, so the context logger honors the --log-level flag.
-func logLevelFromSlog(logger *slog.Logger) zapcore.Level {
-	if logger.Enabled(context.Background(), slog.LevelDebug) {
-		return zapcore.DebugLevel
-	}
-	if logger.Enabled(context.Background(), slog.LevelInfo) {
-		return zapcore.InfoLevel
-	}
-	if logger.Enabled(context.Background(), slog.LevelWarn) {
-		return zapcore.WarnLevel
-	}
-	return zapcore.ErrorLevel
 }
 
 func (a *App) ID() uuid.UUID {
@@ -215,14 +181,14 @@ func (a *App) Close(ctx context.Context) error {
 	if a.MeterProvider != nil {
 		errs = append(errs, a.MeterProvider.Shutdown(ctx))
 	}
-	if a.LogProvider != nil {
-		errs = append(errs, a.LogProvider.Shutdown(ctx))
-	}
 	if a.Redis != nil {
 		errs = append(errs, a.Redis.Close())
 	}
 	if a.DB != nil {
 		errs = append(errs, a.DB.Close())
+	}
+	if err := log.Of(ctx).Sync(); err != nil {
+		errs = append(errs, err)
 	}
 	return errors.Join(errs...)
 }
@@ -249,7 +215,7 @@ func (a *App) StartHTTPServer(ctx context.Context, handler http.Handler) error {
 		_ = a.httpServer.Shutdown(shutdownCtx)
 	}()
 
-	a.Logger.Info("http server started", "addr", addr)
+	log.Of(ctx).Info("http server started", zap.String("addr", addr))
 	err := a.httpServer.ListenAndServe()
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
@@ -278,8 +244,7 @@ func (a *App) StartMetricsServer(ctx context.Context, exporter http.Handler) err
 		defer cancel()
 		_ = a.metricsServer.Shutdown(shutdownCtx)
 	}()
-
-	a.Logger.Info("metrics server started", "addr", addr)
+	log.Of(ctx).Info("metrics server started", zap.String("addr", addr))
 	err := a.metricsServer.ListenAndServe()
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
@@ -287,7 +252,7 @@ func (a *App) StartMetricsServer(ctx context.Context, exporter http.Handler) err
 	return err
 }
 
-func setupTelemetry(ctx context.Context, cfg Config, logger *slog.Logger) (*sdktrace.TracerProvider, *metric.MeterProvider, http.Handler, error) {
+func setupTelemetry(ctx context.Context, cfg Config) (*sdktrace.TracerProvider, *metric.MeterProvider, http.Handler, error) {
 	resourceAttrs := resource.NewWithAttributes(
 		semconv.SchemaURL,
 		semconv.ServiceName("hermes."+cfg.InstanceName),
@@ -309,7 +274,7 @@ func setupTelemetry(ctx context.Context, cfg Config, logger *slog.Logger) (*sdkt
 		metric.WithReader(promExporter),
 	)
 
-	logger.Info("telemetry configured", "tracer_url", cfg.TracerURL)
+	log.Of(ctx).Info("telemetry configured", zap.String("tracer_url", cfg.TracerURL))
 	return traceProvider, meterProvider, promhttp.HandlerFor(registry, promhttp.HandlerOpts{}), nil
 }
 

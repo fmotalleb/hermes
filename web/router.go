@@ -3,15 +3,19 @@
 package web
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/fmotalleb/go-tools/log"
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -72,17 +76,39 @@ func (r *Router) Use(middlewares ...Middleware) {
 }
 
 // RequestLogger registers middleware that logs every HTTP request with its
-// method, path, status code, duration, and remote address. The logger is read
-// from the request context (see log.FromContext), so it should be registered
-// before auth or other middlewares to also cover rejected requests.
+// method, path, status code, duration, and remote address, plus the
+// request-scoped request id and trace id. The request id comes from the
+// X-Request-ID header when present, otherwise a UUIDv7 is generated and echoed
+// back in the response header. The ids are attached to the context logger (see
+// log.FromContext), so every log emitted while handling the request carries
+// them. Register it before auth or other middlewares to also cover rejected
+// requests.
 func (r *Router) RequestLogger() {
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			start := time.Now()
+
+			requestID := strings.TrimSpace(req.Header.Get("X-Request-ID"))
+			if requestID == "" {
+				requestID = newRequestID()
+			}
+
+			// Derive the http child logger and attach it to the context so every
+			// log emitted while handling the request carries the request and
+			// trace ids and the http component name.
+			ctx, logger := log.AsNamedChild(req.Context(), "http")
+			fields := []zap.Field{zap.String("request_id", requestID)}
+			if sc := trace.SpanFromContext(ctx).SpanContext(); sc.IsValid() {
+				fields = append(fields, zap.String("trace_id", sc.TraceID().String()))
+			}
+			ctx = log.WithLogger(ctx, logger.With(fields...))
+			req = req.WithContext(ctx)
+
 			rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+			rec.Header().Set("X-Request-ID", requestID)
 			next.ServeHTTP(rec, req)
 
-			log.FromContext(req.Context()).Named("http").Info("request",
+			log.FromContext(req.Context()).Info("request",
 				zap.String("method", req.Method),
 				zap.String("path", req.URL.Path),
 				zap.Int("status", rec.status),
@@ -93,7 +119,17 @@ func (r *Router) RequestLogger() {
 	})
 }
 
-// statusRecorder captures the response status code for request logging.
+// newRequestID generates a UUIDv7 request id, falling back to a UUIDv4 if the
+// v7 generator is unavailable.
+func newRequestID() string {
+	if id, err := uuid.NewV7(); err == nil {
+		return id.String()
+	}
+	return uuid.New().String()
+}
+
+// statusRecorder captures the response status code for request logging while
+// forwarding writes to the underlying response writer.
 type statusRecorder struct {
 	http.ResponseWriter
 	status int
@@ -102,6 +138,23 @@ type statusRecorder struct {
 func (w *statusRecorder) WriteHeader(status int) {
 	w.status = status
 	w.ResponseWriter.WriteHeader(status)
+}
+
+// Flush implements http.Flusher so streaming handlers keep their flush
+// capability when wrapped by the request logger.
+func (w *statusRecorder) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+// Hijack implements http.Hijacker so the wrapped writer can be hijacked if a
+// handler ever needs raw connection access.
+func (w *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if h, ok := w.ResponseWriter.(http.Hijacker); ok {
+		return h.Hijack()
+	}
+	return nil, nil, http.ErrNotSupported
 }
 
 // Handle registers a route with the given HTTP method, URL pattern, and handler.
@@ -152,38 +205,43 @@ func (r *Router) Group(prefix string, fn func(*Router)) {
 }
 
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	for _, rt := range r.routes {
-		params, ok := matchRoute(rt.parts, req.URL.Path)
-		if !ok || rt.method != req.Method {
-			continue
-		}
+	// Route matching and the 404 fallback run inside the middleware chain so
+	// middlewares (request logging, auth, CORS) apply to every request, and so
+	// the handler context reflects any values attached by middlewares.
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		for _, rt := range r.routes {
+			params, ok := matchRoute(rt.parts, req.URL.Path)
+			if !ok || rt.method != req.Method {
+				continue
+			}
 
-		ctx := &Context{
-			Context:        req.Context(),
-			Request:        req,
-			ResponseWriter: w,
-			Params:         params,
-		}
+			if rt.handler == nil {
+				continue
+			}
 
-		var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			ctx := &Context{
+				Context:        req.Context(),
+				Request:        req,
+				ResponseWriter: w,
+				Params:         params,
+			}
 			value, err := rt.handler(ctx)
 			writeResult(w, req, value, err)
-		})
-
-		for i := len(r.middlewares) - 1; i >= 0; i-- {
-			handler = r.middlewares[i](handler)
+			return
 		}
 
-		handler.ServeHTTP(w, req)
-		return
-	}
+		if r.notFound != nil {
+			r.notFound(w, req)
+			return
+		}
 
-	if r.notFound != nil {
-		r.notFound(w, req)
-		return
-	}
+		http.NotFound(w, req)
+	})
 
-	http.NotFound(w, req)
+	for i := len(r.middlewares) - 1; i >= 0; i-- {
+		handler = r.middlewares[i](handler)
+	}
+	handler.ServeHTTP(w, req)
 }
 
 func parsePattern(pattern string) []routePart {

@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/fmotalleb/hermes/models"
 )
@@ -41,16 +42,41 @@ func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		attribute.Int("type", int(q.Qtype)),
 	))
 
+	logger := h.log()
+	typeStr := dns.Type(q.Qtype).String()
+
+	// Build the query fields lazily: Check returns nil when debug is disabled,
+	// so the client address formatting and field slice are not allocated per
+	// query in the hot path.
+	if ce := logger.Check(zapcore.DebugLevel, "dns query"); ce != nil {
+		fields := []zap.Field{
+			zap.String("name", q.Name),
+			zap.String("type", typeStr),
+		}
+		if addr := w.RemoteAddr(); addr != nil {
+			fields = append(fields, zap.String("client", addr.String()))
+		}
+		ce.Write(fields...)
+	}
+
 	if resp, ok := h.cachedResponse(ctx, r); ok {
 		span.AddEvent("cache hit", trace.WithAttributes(
 			attribute.String("name", q.Name),
 			attribute.Int("class", int(q.Qclass)),
 			attribute.Int("type", int(q.Qtype)),
 		))
+		logger.Debug("dns cache hit",
+			zap.String("name", q.Name),
+			zap.String("type", typeStr),
+		)
 		writeAnswer(w, resp, span)
 		return
 	}
 	span.AddEvent("cache miss")
+	logger.Debug("dns cache miss",
+		zap.String("name", q.Name),
+		zap.String("type", typeStr),
+	)
 	resp, err := h.lookup(ctx, q.Name, q.Qtype, r)
 	if err != nil {
 		span.AddEvent("failed", trace.WithAttributes(

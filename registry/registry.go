@@ -13,7 +13,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fmotalleb/go-tools/log"
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 )
 
 // ServiceKind identifies a category of service in the registry.
@@ -45,6 +47,12 @@ type RegistryConnection struct {
 	ttl            time.Duration
 	heartbeatEvery time.Duration
 
+	// hbHealthy tracks whether the last heartbeat succeeded. It is only touched
+	// by Start and the heartbeat goroutine, so no locking is needed. It is used
+	// to log connectivity transitions (first failure, and recovery) instead of
+	// logging every retry while Redis is down.
+	hbHealthy bool
+
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 	mu     sync.RWMutex
@@ -66,6 +74,7 @@ func NewRegistryConnection(
 		key:            redisKey(kind, instanceID),
 		ttl:            10 * time.Second,
 		heartbeatEvery: 5 * time.Second,
+		hbHealthy:      true,
 	}
 }
 
@@ -86,9 +95,18 @@ func cloneMap(src map[string]any) map[string]any {
 
 // Start does an immediate check-in and then starts heartbeat in the background.
 func (c *RegistryConnection) Start(ctx context.Context, addr net.IP) error {
+	ctx, logger := log.AsNamedChild(ctx, "registry")
+
 	if err := c.checkIn(ctx, addr); err != nil {
 		return err
 	}
+
+	logger.Info("service registered",
+		zap.String("kind", c.kind),
+		zap.String("instance_id", c.instanceID),
+		zap.String("key", c.key),
+		zap.String("addr", addr.String()),
+	)
 
 	hbCtx, cancel := context.WithCancel(ctx)
 	c.cancel = cancel
@@ -131,7 +149,29 @@ func (c *RegistryConnection) checkIn(ctx context.Context, addr net.IP) error {
 		return err
 	}
 
-	return c.redis.Set(ctx, c.key, data, c.ttl).Err()
+	if err := c.redis.Set(ctx, c.key, data, c.ttl).Err(); err != nil {
+		// Log the failure only when transitioning from healthy, so an ongoing
+		// Redis outage does not spam a warning every heartbeat tick. The logger
+		// is inherited from the registry child attached by Start.
+		if c.hbHealthy {
+			log.FromContext(ctx).Warn("registry heartbeat failed",
+				zap.String("kind", c.kind),
+				zap.String("instance_id", c.instanceID),
+				zap.Error(err),
+			)
+		}
+		c.hbHealthy = false
+		return err
+	}
+
+	if !c.hbHealthy {
+		log.FromContext(ctx).Info("registry heartbeat recovered",
+			zap.String("kind", c.kind),
+			zap.String("instance_id", c.instanceID),
+		)
+	}
+	c.hbHealthy = true
+	return nil
 }
 
 // Stop stops heartbeat and removes this instance from Redis.
@@ -140,7 +180,22 @@ func (c *RegistryConnection) Stop(ctx context.Context) error {
 		c.cancel()
 	}
 	c.wg.Wait()
-	return c.redis.Del(ctx, c.key).Err()
+
+	ctx, logger := log.AsNamedChild(ctx, "registry")
+	if err := c.redis.Del(ctx, c.key).Err(); err != nil {
+		logger.Warn("registry deregister failed",
+			zap.String("kind", c.kind),
+			zap.String("instance_id", c.instanceID),
+			zap.Error(err),
+		)
+		return err
+	}
+
+	logger.Info("service deregistered",
+		zap.String("kind", c.kind),
+		zap.String("instance_id", c.instanceID),
+	)
+	return nil
 }
 
 // GetSelf reads this instance's current data from Redis.
@@ -188,7 +243,9 @@ func (c *RegistryConnection) ListKind(ctx context.Context, kind string) ([]Entry
 		}
 	}
 
+	ctx, logger := log.AsNamedChild(ctx, "registry")
 	if len(keys) == 0 {
+		logger.Debug("registry list", zap.String("kind", kind), zap.Int("count", 0))
 		return []Entry{}, nil
 	}
 
@@ -216,6 +273,7 @@ func (c *RegistryConnection) ListKind(ctx context.Context, kind string) ([]Entry
 		entries = append(entries, entry)
 	}
 
+	logger.Debug("registry list", zap.String("kind", kind), zap.Int("count", len(entries)))
 	return entries, nil
 }
 
@@ -225,6 +283,7 @@ func (c *RegistryConnection) ListSameKind(ctx context.Context) ([]Entry, error) 
 }
 
 func (c *RegistryConnection) OnDelete(ctx context.Context, dbIndex int, kind ServiceKind, callback func(string)) error {
+	ctx, logger := log.AsNamedChild(ctx, "registry")
 	pubsub := c.redis.PSubscribe(
 		ctx,
 		fmt.Sprintf("__keyevent@%d__:del", dbIndex),
@@ -232,6 +291,10 @@ func (c *RegistryConnection) OnDelete(ctx context.Context, dbIndex int, kind Ser
 	)
 	for msg := range pubsub.Channel() {
 		if strings.HasPrefix(msg.Payload, fmt.Sprintf("registry:%s:", kind)) {
+			logger.Debug("registry peer removed",
+				zap.String("kind", kind),
+				zap.String("key", msg.Payload),
+			)
 			callback(msg.Payload)
 		}
 	}

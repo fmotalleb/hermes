@@ -31,22 +31,37 @@ func newHandler(r *repository, migrator Migrator, metrics http.Handler, bus pubs
 	}
 }
 
-// logger returns the zap logger carried by the request context, named for the
-// api package so handlers can log failures with request-scoped fields.
-func logger(ctx *web.Context) *zap.Logger {
-	return log.FromContext(ctx).Named("api")
-}
-
-func notFoundEntity(ctx *web.Context, logMessage, entityName, value string, err error) (any, error) {
-	logger(ctx).Warn(logMessage, zap.String(entityName, value), zap.Error(err))
+// notFoundEntity logs the underlying error once (at warn level) and returns a
+// 404 response, using the handler's request-scoped logger.
+func notFoundEntity(logger *zap.Logger, logMessage, entityName, value string, err error) (any, error) {
+	logger.Warn(logMessage, zap.String(entityName, value), zap.Error(err))
 	return nil, entityNotFoundError{Name: entityName, Value: value}
 }
 
+// bindRequest decodes the request body into v, logging a debug line on failure
+// so malformed client payloads are visible without being treated as server
+// errors.
+func bindRequest(ctx *web.Context, logger *zap.Logger, v any) error {
+	if err := ctx.Bind(v); err != nil {
+		logger.Debug("failed to bind request body", zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+// reject logs a client-side validation failure at debug level and returns the
+// error unchanged so the handler's response behavior is preserved.
+func reject(logger *zap.Logger, err error) error {
+	logger.Debug("invalid request", zap.Error(err))
+	return err
+}
+
 func (h *handler) getZones(ctx *web.Context) (any, error) {
+	apiCtx, logger := log.AsNamedChild(ctx, "api")
 	p := request.PaginatorOf(ctx)
-	zones, err := h.repo.getZones(ctx, p.Limit, p.Offset)
+	zones, err := h.repo.getZones(apiCtx, p.Limit, p.Offset)
 	if err != nil {
-		logger(ctx).Error("failed to get zones", zap.Error(err))
+		logger.Error("failed to get zones", zap.Error(err))
 		return nil, err
 	}
 	return map[string]any{
@@ -57,75 +72,80 @@ func (h *handler) getZones(ctx *web.Context) (any, error) {
 }
 
 func (h *handler) getZone(ctx *web.Context) (any, error) {
+	apiCtx, logger := log.AsNamedChild(ctx, "api")
 	zone := ctx.PathParam("zone")
-	r, err := h.repo.getZone(ctx, zone)
+	r, err := h.repo.getZone(apiCtx, zone)
 	if err != nil {
-		return notFoundEntity(ctx, "failed to get zone", "zone_id", zone, err)
+		return notFoundEntity(logger, "failed to get zone", "zone_id", zone, err)
 	}
 	return r, nil
 }
 
 func (h *handler) createZone(ctx *web.Context) (any, error) {
+	apiCtx, logger := log.AsNamedChild(ctx, "api")
 	var req zoneRequest
-	if err := ctx.Bind(&req); err != nil {
+	if err := bindRequest(ctx, logger, &req); err != nil {
 		return nil, err
 	}
 	req.Name = normalizeName(req.Name)
 	if req.Name == "" {
-		return nil, errors.New("zone name is required")
+		return nil, reject(logger, errors.New("zone name is required"))
 	}
 
-	zone, err := h.repo.createZone(ctx, req)
+	zone, err := h.repo.createZone(apiCtx, req)
 	if err != nil {
-		logger(ctx).Error("failed to create zone", zap.Error(err))
+		logger.Error("failed to create zone", zap.Error(err))
 		return nil, normalizeCreateError(err)
 	}
-	logger(ctx).Debug("zone created", zap.String("zone_id", zone.ID))
+	logger.Debug("zone created", zap.String("zone_id", zone.ID))
 	return zone, nil
 }
 
 func (h *handler) updateZone(ctx *web.Context) (any, error) {
+	apiCtx, logger := log.AsNamedChild(ctx, "api")
 	var req zoneRequest
-	if err := ctx.Bind(&req); err != nil {
+	if err := bindRequest(ctx, logger, &req); err != nil {
 		return nil, err
 	}
 	req.Name = normalizeName(req.Name)
 	if req.Name == "" {
-		return nil, errors.New("zone name is required")
+		return nil, reject(logger, errors.New("zone name is required"))
 	}
 
-	zone, err := h.repo.updateZone(ctx, ctx.PathParam("zone"), req)
+	zone, err := h.repo.updateZone(apiCtx, ctx.PathParam("zone"), req)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return notFoundEntity(ctx, "failed to update zone", "zone_id", ctx.PathParam("zone"), err)
+			return notFoundEntity(logger, "failed to update zone", "zone_id", ctx.PathParam("zone"), err)
 		}
-		logger(ctx).Error("failed to update zone", zap.String("zone_id", ctx.PathParam("zone")), zap.Error(err))
+		logger.Error("failed to update zone", zap.String("zone_id", ctx.PathParam("zone")), zap.Error(err))
 		return nil, normalizeCreateError(err)
 	}
-	logger(ctx).Debug("zone updated", zap.String("zone_id", zone.ID))
+	logger.Debug("zone updated", zap.String("zone_id", zone.ID))
 	return zone, nil
 }
 
 func (h *handler) deleteZone(ctx *web.Context) (any, error) {
+	apiCtx, logger := log.AsNamedChild(ctx, "api")
 	zoneID := ctx.PathParam("zone")
-	value, err := h.repo.deleteZone(ctx, zoneID)
+	value, err := h.repo.deleteZone(apiCtx, zoneID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return notFoundEntity(ctx, "failed to delete zone", "zone_id", zoneID, err)
+		return notFoundEntity(logger, "failed to delete zone", "zone_id", zoneID, err)
 	}
 	if err != nil {
-		logger(ctx).Error("failed to delete zone", zap.String("zone_id", zoneID), zap.Error(err))
+		logger.Error("failed to delete zone", zap.String("zone_id", zoneID), zap.Error(err))
 		return nil, err
 	}
-	logger(ctx).Debug("zone deleted", zap.String("zone_id", zoneID))
+	logger.Debug("zone deleted", zap.String("zone_id", zoneID))
 	return value, nil
 }
 
 func (h *handler) getForwardZones(ctx *web.Context) (any, error) {
+	apiCtx, logger := log.AsNamedChild(ctx, "api")
 	p := request.PaginatorOf(ctx)
 
-	zones, err := h.repo.getForwardZones(ctx, p.Limit, p.Offset)
+	zones, err := h.repo.getForwardZones(apiCtx, p.Limit, p.Offset)
 	if err != nil {
-		logger(ctx).Error("failed to get forward zones", zap.Error(err))
+		logger.Error("failed to get forward zones", zap.Error(err))
 		return nil, err
 	}
 
@@ -137,81 +157,86 @@ func (h *handler) getForwardZones(ctx *web.Context) (any, error) {
 }
 
 func (h *handler) getForwardZone(ctx *web.Context) (any, error) {
+	apiCtx, logger := log.AsNamedChild(ctx, "api")
 	id := ctx.PathParam("id")
-	r, err := h.repo.getForwardZone(ctx, id)
+	r, err := h.repo.getForwardZone(apiCtx, id)
 	if err != nil {
-		return notFoundEntity(ctx, "failed to get forward zone", "forward_zone_id", id, err)
+		return notFoundEntity(logger, "failed to get forward zone", "forward_zone_id", id, err)
 	}
 	return r, nil
 }
 
 func (h *handler) createForwardZone(ctx *web.Context) (any, error) {
+	apiCtx, logger := log.AsNamedChild(ctx, "api")
 	var req forwardZoneRequest
-	if err := ctx.Bind(&req); err != nil {
+	if err := bindRequest(ctx, logger, &req); err != nil {
 		return nil, err
 	}
 	req.Name = normalizeName(req.Name)
 	if req.Name == "" {
-		return nil, errors.New("forward zone name is required")
+		return nil, reject(logger, errors.New("forward zone name is required"))
 	}
 	if len(req.Addresses) == 0 {
-		return nil, errors.New("forward zone addresses are required")
+		return nil, reject(logger, errors.New("forward zone addresses are required"))
 	}
 
-	zone, err := h.repo.createForwardZone(ctx, req)
+	zone, err := h.repo.createForwardZone(apiCtx, req)
 	if err != nil {
-		logger(ctx).Error("failed to create forward zone", zap.Error(err))
+		logger.Error("failed to create forward zone", zap.Error(err))
 		return nil, normalizeCreateError(err)
 	}
-	logger(ctx).Debug("forward zone created", zap.String("forward_zone_id", zone.ID))
+	logger.Debug("forward zone created", zap.String("forward_zone_id", zone.ID))
 	return zone, nil
 }
 
 func (h *handler) updateForwardZone(ctx *web.Context) (any, error) {
+	apiCtx, logger := log.AsNamedChild(ctx, "api")
 	var req forwardZoneRequest
-	if err := ctx.Bind(&req); err != nil {
+	if err := bindRequest(ctx, logger, &req); err != nil {
 		return nil, err
 	}
 	req.Name = normalizeName(req.Name)
 	if req.Name == "" {
-		return nil, errors.New("forward zone name is required")
+		return nil, reject(logger, errors.New("forward zone name is required"))
 	}
 	if len(req.Addresses) == 0 {
-		return nil, errors.New("forward zone addresses are required")
+		return nil, reject(logger, errors.New("forward zone addresses are required"))
 	}
 
-	zone, err := h.repo.updateForwardZone(ctx, ctx.PathParam("id"), req)
+	zone, err := h.repo.updateForwardZone(apiCtx, ctx.PathParam("id"), req)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return notFoundEntity(ctx, "failed to update forward zone", "forward_zone_id", ctx.PathParam("id"), err)
+			return notFoundEntity(logger, "failed to update forward zone", "forward_zone_id", ctx.PathParam("id"), err)
 		}
-		logger(ctx).Error("failed to update forward zone", zap.String("forward_zone_id", ctx.PathParam("id")), zap.Error(err))
+		logger.Error("failed to update forward zone", zap.String("forward_zone_id", ctx.PathParam("id")), zap.Error(err))
 		return nil, normalizeCreateError(err)
 	}
-	logger(ctx).Debug("forward zone updated", zap.String("forward_zone_id", zone.ID))
+	logger.Debug("forward zone updated", zap.String("forward_zone_id", zone.ID))
 	return zone, nil
 }
 
 func (h *handler) deleteForwardZone(ctx *web.Context) (any, error) {
+	apiCtx, logger := log.AsNamedChild(ctx, "api")
 	id := ctx.PathParam("id")
-	value, err := h.repo.deleteForwardZone(ctx, id)
+	value, err := h.repo.deleteForwardZone(apiCtx, id)
 	if errors.Is(err, sql.ErrNoRows) {
-		return notFoundEntity(ctx, "failed to delete forward zone", "forward_zone_id", id, err)
+		return notFoundEntity(logger, "failed to delete forward zone", "forward_zone_id", id, err)
 	}
 	if err != nil {
-		logger(ctx).Error("failed to delete forward zone", zap.String("forward_zone_id", id), zap.Error(err))
+		logger.Error("failed to delete forward zone", zap.String("forward_zone_id", id), zap.Error(err))
 		return nil, err
 	}
-	logger(ctx).Debug("forward zone deleted", zap.String("forward_zone_id", id))
+	logger.Debug("forward zone deleted", zap.String("forward_zone_id", id))
 	return value, nil
 }
 
 func (h *handler) getZoneRecords(ctx *web.Context) (any, error) {
+	apiCtx, logger := log.AsNamedChild(ctx, "api")
 	p := request.PaginatorOf(ctx)
 
-	records, err := h.repo.getRecords(ctx, ctx.PathParam("zone"), p.Limit, p.Offset)
+	records, err := h.repo.getRecords(apiCtx, ctx.PathParam("zone"), p.Limit, p.Offset)
 	if err != nil {
-		logger(ctx).Error("failed to get records", zap.String("zone_id", ctx.PathParam("zone")), zap.Error(err))
+		logger.Error("failed to get records", zap.String("zone_id", ctx.PathParam("zone")), zap.Error(err))
 		return nil, err
 	}
 
@@ -223,109 +248,116 @@ func (h *handler) getZoneRecords(ctx *web.Context) (any, error) {
 }
 
 func (h *handler) getRecord(ctx *web.Context) (any, error) {
+	apiCtx, logger := log.AsNamedChild(ctx, "api")
 	zoneID := ctx.PathParam("zone")
 	id := ctx.PathParam("id")
-	r, err := h.repo.getRecord(ctx, zoneID, id)
+	r, err := h.repo.getRecord(apiCtx, zoneID, id)
 	if err != nil {
-		return notFoundEntity(ctx, "failed to get record", "record_id", id, err)
+		return notFoundEntity(logger, "failed to get record", "record_id", id, err)
 	}
 	return r, nil
 }
 
 func (h *handler) createRecord(ctx *web.Context) (any, error) {
+	apiCtx, logger := log.AsNamedChild(ctx, "api")
 	var req recordRequest
-	if err := ctx.Bind(&req); err != nil {
+	if err := bindRequest(ctx, logger, &req); err != nil {
 		return nil, err
 	}
 	req.Name = normalizeName(req.Name)
 	req.Value = normalizeName(req.Value)
 	if req.Name == "" {
-		return nil, errors.New("record name is required")
+		return nil, reject(logger, errors.New("record name is required"))
 	}
 	if req.Value == "" {
-		return nil, errors.New("record value is required")
+		return nil, reject(logger, errors.New("record value is required"))
 	}
 	if !validRecordType(req.Type) {
-		return nil, fmt.Errorf("%w: %s", errInvalidRecordType, req.Type)
+		return nil, reject(logger, fmt.Errorf("%w: %s", errInvalidRecordType, req.Type))
 	}
 
-	record, err := h.repo.createRecord(ctx, ctx.PathParam("zone"), req)
+	record, err := h.repo.createRecord(apiCtx, ctx.PathParam("zone"), req)
 	if err != nil {
-		logger(ctx).Error("failed to create record", zap.String("zone_id", ctx.PathParam("zone")), zap.Error(err))
+		logger.Error("failed to create record", zap.String("zone_id", ctx.PathParam("zone")), zap.Error(err))
 		return nil, normalizeCreateError(err)
 	}
-	logger(ctx).Debug("record created", zap.String("zone_id", ctx.PathParam("zone")), zap.String("record_id", record.ID))
+	logger.Debug("record created", zap.String("zone_id", ctx.PathParam("zone")), zap.String("record_id", record.ID))
 	return record, nil
 }
 
 func (h *handler) updateRecord(ctx *web.Context) (any, error) {
+	apiCtx, logger := log.AsNamedChild(ctx, "api")
 	var req recordRequest
-	if err := ctx.Bind(&req); err != nil {
+	if err := bindRequest(ctx, logger, &req); err != nil {
 		return nil, err
 	}
 	req.Name = normalizeName(req.Name)
 	req.Value = normalizeName(req.Value)
 	if req.Name == "" {
-		return nil, errors.New("record name is required")
+		return nil, reject(logger, errors.New("record name is required"))
 	}
 	if req.Value == "" {
-		return nil, errors.New("record value is required")
+		return nil, reject(logger, errors.New("record value is required"))
 	}
 	if !validRecordType(req.Type) {
-		return nil, fmt.Errorf("%w: %s", errInvalidRecordType, req.Type)
+		return nil, reject(logger, fmt.Errorf("%w: %s", errInvalidRecordType, req.Type))
 	}
 
-	record, err := h.repo.updateRecord(ctx, ctx.PathParam("zone"), ctx.PathParam("id"), req)
+	record, err := h.repo.updateRecord(apiCtx, ctx.PathParam("zone"), ctx.PathParam("id"), req)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return notFoundEntity(ctx, "failed to update record", "record_id", ctx.PathParam("id"), err)
+			return notFoundEntity(logger, "failed to update record", "record_id", ctx.PathParam("id"), err)
 		}
-		logger(ctx).Error("failed to update record", zap.String("record_id", ctx.PathParam("id")), zap.Error(err))
+		logger.Error("failed to update record", zap.String("record_id", ctx.PathParam("id")), zap.Error(err))
 		return nil, normalizeCreateError(err)
 	}
-	logger(ctx).Debug("record updated", zap.String("zone_id", ctx.PathParam("zone")), zap.String("record_id", record.ID))
+	logger.Debug("record updated", zap.String("zone_id", ctx.PathParam("zone")), zap.String("record_id", record.ID))
 	return record, nil
 }
 
 func (h *handler) deleteRecord(ctx *web.Context) (any, error) {
+	apiCtx, logger := log.AsNamedChild(ctx, "api")
 	id := ctx.PathParam("id")
-	value, err := h.repo.deleteRecord(ctx, ctx.PathParam("zone"), id)
+	value, err := h.repo.deleteRecord(apiCtx, ctx.PathParam("zone"), id)
 	if errors.Is(err, sql.ErrNoRows) {
-		return notFoundEntity(ctx, "failed to delete record", "record_id", id, err)
+		return notFoundEntity(logger, "failed to delete record", "record_id", id, err)
 	}
 	if err != nil {
-		logger(ctx).Error("failed to delete record", zap.String("record_id", id), zap.Error(err))
+		logger.Error("failed to delete record", zap.String("record_id", id), zap.Error(err))
 		return nil, err
 	}
-	logger(ctx).Debug("record deleted", zap.String("record_id", id))
+	logger.Debug("record deleted", zap.String("record_id", id))
 	return value, nil
 }
 
 func (h *handler) getSettings(ctx *web.Context) (any, error) {
-	settings, err := h.repo.getSettings(ctx)
+	apiCtx, logger := log.AsNamedChild(ctx, "api")
+	settings, err := h.repo.getSettings(apiCtx)
 	if err != nil {
-		logger(ctx).Error("failed to get settings", zap.Error(err))
+		logger.Error("failed to get settings", zap.Error(err))
 		return nil, err
 	}
 	return settings, nil
 }
 
 func (h *handler) updateSettings(ctx *web.Context) (any, error) {
+	apiCtx, logger := log.AsNamedChild(ctx, "api")
 	var req settingsRequest
-	if err := ctx.Bind(&req); err != nil {
+	if err := bindRequest(ctx, logger, &req); err != nil {
 		return nil, err
 	}
 
-	settings, err := h.repo.updateSettings(ctx, req)
+	settings, err := h.repo.updateSettings(apiCtx, req)
 	if err != nil {
-		logger(ctx).Error("failed to update settings", zap.Error(err))
+		logger.Error("failed to update settings", zap.Error(err))
 		return nil, err
 	}
-	logger(ctx).Debug("settings updated")
+	logger.Debug("settings updated")
 	return settings, nil
 }
 
 func (h *handler) publishEvent(ctx *web.Context) (any, error) {
+	apiCtx, logger := log.AsNamedChild(ctx, "api")
 	if h.pubsub == nil {
 		return nil, errors.New("pubsub not configured")
 	}
@@ -333,14 +365,14 @@ func (h *handler) publishEvent(ctx *web.Context) (any, error) {
 	topic := ctx.PathParam("topic")
 	payload, err := io.ReadAll(ctx.Request.Body)
 	if err != nil {
-		logger(ctx).Error("failed to read pubsub payload", zap.String("topic", topic), zap.Error(err))
+		logger.Error("failed to read pubsub payload", zap.String("topic", topic), zap.Error(err))
 		return nil, err
 	}
-	if err := h.pubsub.Publish(ctx, topic, payload); err != nil {
-		logger(ctx).Error("failed to publish event", zap.String("topic", topic), zap.Error(err))
+	if err := h.pubsub.Publish(apiCtx, topic, payload); err != nil {
+		logger.Error("failed to publish event", zap.String("topic", topic), zap.Error(err))
 		return nil, err
 	}
-	logger(ctx).Debug("event published", zap.String("topic", topic))
+	logger.Debug("event published", zap.String("topic", topic))
 	return map[string]any{
 		"topic":     topic,
 		"published": true,
@@ -348,15 +380,16 @@ func (h *handler) publishEvent(ctx *web.Context) (any, error) {
 }
 
 func (h *handler) runMigrations(ctx *web.Context) (any, error) {
+	apiCtx, logger := log.AsNamedChild(ctx, "api")
 	if h.migrator == nil {
 		return nil, errors.New("migrator not configured")
 	}
 
-	if err := h.migrator.Run(ctx); err != nil {
-		logger(ctx).Error("failed to run migrations", zap.Error(err))
+	if err := h.migrator.Run(apiCtx); err != nil {
+		logger.Error("failed to run migrations", zap.Error(err))
 		return nil, err
 	}
-	logger(ctx).Debug("migrations ran successfully")
+	logger.Debug("migrations ran successfully")
 	return map[string]any{"ok": true}, nil
 }
 
@@ -370,11 +403,12 @@ func (h *handler) metrics(ctx *web.Context) (any, error) {
 }
 
 func (h *handler) getHijacks(ctx *web.Context) (any, error) {
+	apiCtx, logger := log.AsNamedChild(ctx, "api")
 	p := request.PaginatorOf(ctx)
 
-	hijacks, err := h.repo.getHijacks(ctx, p.Limit, p.Offset)
+	hijacks, err := h.repo.getHijacks(apiCtx, p.Limit, p.Offset)
 	if err != nil {
-		logger(ctx).Error("failed to get hijacks", zap.Error(err))
+		logger.Error("failed to get hijacks", zap.Error(err))
 		return nil, err
 	}
 
@@ -386,20 +420,22 @@ func (h *handler) getHijacks(ctx *web.Context) (any, error) {
 }
 
 func (h *handler) getHijack(ctx *web.Context) (any, error) {
+	apiCtx, logger := log.AsNamedChild(ctx, "api")
 	id := ctx.PathParam("id")
 
-	r, err := h.repo.getHijack(ctx, id)
+	r, err := h.repo.getHijack(apiCtx, id)
 	if err != nil {
-		return notFoundEntity(ctx, "failed to get hijack", "hijack_id", id, err)
+		return notFoundEntity(logger, "failed to get hijack", "hijack_id", id, err)
 	}
 
 	return r, nil
 }
 
 func (h *handler) createHijack(ctx *web.Context) (any, error) {
+	apiCtx, logger := log.AsNamedChild(ctx, "api")
 	var req hijackRequest
 
-	if err := ctx.Bind(&req); err != nil {
+	if err := bindRequest(ctx, logger, &req); err != nil {
 		return nil, err
 	}
 
@@ -407,24 +443,25 @@ func (h *handler) createHijack(ctx *web.Context) (any, error) {
 	req.Value = normalizeName(req.Value)
 
 	if err := validateHijackRequest(req); err != nil {
-		return nil, err
+		return nil, reject(logger, err)
 	}
 
-	record, err := h.repo.createHijack(ctx, req)
+	record, err := h.repo.createHijack(apiCtx, req)
 	if err != nil {
-		logger(ctx).Error("failed to create hijack", zap.Error(err))
+		logger.Error("failed to create hijack", zap.Error(err))
 		return nil, normalizeCreateError(err)
 	}
-	logger(ctx).Debug("hijack created", zap.String("hijack_id", record.ID))
+	logger.Debug("hijack created", zap.String("hijack_id", record.ID))
 	return record, nil
 }
 
 func (h *handler) updateHijack(ctx *web.Context) (any, error) {
+	apiCtx, logger := log.AsNamedChild(ctx, "api")
 	id := ctx.PathParam("id")
 
 	var req hijackRequest
 
-	if err := ctx.Bind(&req); err != nil {
+	if err := bindRequest(ctx, logger, &req); err != nil {
 		return nil, err
 	}
 
@@ -432,41 +469,43 @@ func (h *handler) updateHijack(ctx *web.Context) (any, error) {
 	req.Value = normalizeName(req.Value)
 
 	if err := validateHijackRequest(req); err != nil {
-		return nil, err
+		return nil, reject(logger, err)
 	}
 
-	record, err := h.repo.updateHijack(ctx, id, req)
+	record, err := h.repo.updateHijack(apiCtx, id, req)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return notFoundEntity(ctx, "failed to update hijack", "hijack_id", id, err)
+			return notFoundEntity(logger, "failed to update hijack", "hijack_id", id, err)
 		}
-		logger(ctx).Error("failed to update hijack", zap.String("hijack_id", id), zap.Error(err))
+		logger.Error("failed to update hijack", zap.String("hijack_id", id), zap.Error(err))
 		return nil, normalizeCreateError(err)
 	}
-	logger(ctx).Debug("hijack updated", zap.String("hijack_id", record.ID))
+	logger.Debug("hijack updated", zap.String("hijack_id", record.ID))
 	return record, nil
 }
 
 func (h *handler) deleteHijack(ctx *web.Context) (any, error) {
+	apiCtx, logger := log.AsNamedChild(ctx, "api")
 	id := ctx.PathParam("id")
 
-	value, err := h.repo.deleteHijack(ctx, id)
+	value, err := h.repo.deleteHijack(apiCtx, id)
 	if errors.Is(err, sql.ErrNoRows) {
-		return notFoundEntity(ctx, "failed to delete hijack", "hijack_id", id, err)
+		return notFoundEntity(logger, "failed to delete hijack", "hijack_id", id, err)
 	}
 	if err != nil {
-		logger(ctx).Error("failed to delete hijack", zap.String("hijack_id", id), zap.Error(err))
+		logger.Error("failed to delete hijack", zap.String("hijack_id", id), zap.Error(err))
 		return nil, err
 	}
-	logger(ctx).Debug("hijack deleted", zap.String("hijack_id", id))
+	logger.Debug("hijack deleted", zap.String("hijack_id", id))
 	return value, nil
 }
 
 func (h *handler) getServices(ctx *web.Context) (any, error) {
+	apiCtx, logger := log.AsNamedChild(ctx, "api")
 	kind := ctx.PathParam("kind")
-	services, err := h.repo.getServices(ctx, kind)
+	services, err := h.repo.getServices(apiCtx, kind)
 	if err != nil {
-		logger(ctx).Error("failed to get services", zap.String("kind", kind), zap.Error(err))
+		logger.Error("failed to get services", zap.String("kind", kind), zap.Error(err))
 		return nil, err
 	}
 	return services, nil

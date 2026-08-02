@@ -11,7 +11,9 @@ import (
 )
 
 func newPubSubBus(cfg runtime.Config, app *runtime.App) (pubsub.Bus, error) {
-	logger := watermill.NewSlogLogger(app.Logger)
+	// TODO: add zaplog
+	logger := watermill.NewCaptureLogger()
+
 	group := cfg.PubSubConsumerGroup + "-" + app.ID().String()
 	switch strings.ToLower(strings.TrimSpace(cfg.PubSubBackend)) {
 	case "", "gochannel", "memory", "local":

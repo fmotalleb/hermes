@@ -1,4 +1,4 @@
-package log
+package otellog
 
 import (
 	"context"
@@ -23,14 +23,14 @@ import (
 // The returned context carries a logger that tees every record to the base
 // logger and to the collector. The returned provider must be shut down when the
 // application exits so pending logs are flushed.
-func Integrate(ctx context.Context, url string, headers map[string]string) (context.Context, *sdklog.LoggerProvider, error) {
+func Integrate(ctx context.Context, url string, headers map[string]string) (context.Context, error) {
 	if strings.TrimSpace(url) == "" {
-		return ctx, nil, nil
+		return ctx, nil
 	}
 
 	exporter, err := otlploghttp.New(ctx, otlplogOptions(url+"/v1/logs", headers)...)
 	if err != nil {
-		return ctx, nil, fmt.Errorf("create otlp log exporter: %w", err)
+		return ctx, fmt.Errorf("create otlp log exporter: %w", err)
 	}
 
 	provider := sdklog.NewLoggerProvider(
@@ -48,7 +48,7 @@ func Integrate(ctx context.Context, url string, headers map[string]string) (cont
 		return zapcore.NewTee(existing, core)
 	}))
 
-	return log.WithLogger(ctx, logger), provider, nil
+	return log.WithLogger(ctx, logger), nil
 }
 
 // otlplogOptions builds the otlploghttp options from the collector URL and the

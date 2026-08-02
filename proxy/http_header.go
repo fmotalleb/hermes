@@ -21,12 +21,11 @@ import (
 // serveHTTPRouter starts an HTTP proxy server on the given addr.
 // It initializes the server with a proxy handler that forwards requests through a SOCKS5 proxy chain.
 func (p *Proxy) serveHTTPRouter(ctx context.Context, addr string) error {
-	logger := log.FromContext(ctx).
-		Named("router.http").
-		With(
-			zap.String("router", "http"),
-			zap.String("listen", addr),
-		)
+	ctx, logger := log.AsNamedChild(ctx, "router.http")
+	logger = logger.With(
+		zap.String("router", "http"),
+		zap.String("listen", addr),
+	)
 
 	server := &http.Server{
 		ReadHeaderTimeout: time.Second * 30,

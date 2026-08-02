@@ -3,8 +3,6 @@ package runtime
 import (
 	"context"
 	"encoding/base64"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -13,29 +11,7 @@ import (
 	"testing"
 
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.uber.org/zap/zapcore"
 )
-
-func TestLogLevelFromSlog(t *testing.T) {
-	cases := []struct {
-		name  string
-		level slog.Level
-		want  zapcore.Level
-	}{
-		{"debug", slog.LevelDebug, zapcore.DebugLevel},
-		{"info", slog.LevelInfo, zapcore.InfoLevel},
-		{"warn", slog.LevelWarn, zapcore.WarnLevel},
-		{"error", slog.LevelError, zapcore.ErrorLevel},
-	}
-	for _, tt := range cases {
-		t.Run(tt.name, func(t *testing.T) {
-			logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: tt.level}))
-			if got := logLevelFromSlog(logger); got != tt.want {
-				t.Fatalf("expected %v, got %v", tt.want, got)
-			}
-		})
-	}
-}
 
 func TestParseTraceEndpoint(t *testing.T) {
 	tests := []struct {
