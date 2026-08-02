@@ -49,12 +49,14 @@ var dnsCmd = &cobra.Command{
 			)
 		}
 
-		eg, ctx := errgroup.WithContext(ctx)
+		// app.Context() carries the logger teed to the OTLP collector (see
+		// otellog.Integrate); deriving from it keeps every server log exported.
+		eg, ctx := errgroup.WithContext(app.Context())
 		eg.Go(func() error {
 			return app.StartMetricsServer(ctx, app.MetricsHandler)
 		})
 		eg.Go(func() error {
-			return dns.Serve(app.Context(), app, bus, dnsOpts...)
+			return dns.Serve(ctx, app, bus, dnsOpts...)
 		})
 		return eg.Wait()
 	},

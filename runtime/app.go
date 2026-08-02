@@ -26,6 +26,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/propagation"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -50,6 +51,7 @@ type App struct {
 
 	TraceProvider  *sdktrace.TracerProvider
 	MeterProvider  *metric.MeterProvider
+	LogProvider    *sdklog.LoggerProvider
 	MetricsHandler http.Handler
 
 	ctx context.Context
@@ -68,17 +70,29 @@ func New(ctx context.Context, kind string) (*App, error) {
 	if id, err = uuid.NewV7(); err != nil {
 		return nil, err
 	}
-	cfg := LoadConfig()
+	cfg := LoadConfig(ctx)
 
 	// OTEL log export: when LOG_URL is set, tee the context logger to the
 	// configured collector so every record emitted through log.FromContext is
 	// exported as well.
+	var logProvider *sdklog.LoggerProvider
 	if strings.TrimSpace(cfg.LogURL) != "" {
 		var headers map[string]string
 		if headers, err = parseOTLPHeaders(cfg.LogHeaders); err != nil {
 			return nil, fmt.Errorf("parse log headers: %w", err)
 		}
-		if ctx, err = otellog.Integrate(ctx, cfg.LogURL, headers); err != nil {
+		if ctx, logProvider, err = otellog.Integrate(ctx, otellog.Config{
+			URL:              cfg.LogURL,
+			Headers:          headers,
+			QueueSize:        cfg.LogQueueSize,
+			ExportInterval:   cfg.LogExportInterval,
+			ExportTimeout:    cfg.LogExportTimeout,
+			MaxBatchSize:     cfg.LogMaxBatchSize,
+			ExportBufferSize: cfg.LogExportBufferSize,
+			ExporterTimeout:  cfg.LogExporterTimeout,
+			MaxRequestSize:   cfg.LogMaxRequestSize,
+			Compression:      cfg.LogCompression,
+		}); err != nil {
 			return nil, fmt.Errorf("integrate otlp logging: %w", err)
 		}
 	}
@@ -151,6 +165,7 @@ func New(ctx context.Context, kind string) (*App, error) {
 		Redis:           redisClient,
 		TraceProvider:   traceProvider,
 		MeterProvider:   meterProvider,
+		LogProvider:     logProvider,
 		MetricsHandler:  metricsHandler,
 		ctx:             ctx,
 		ServiceRegistry: serviceRegistry,
@@ -180,6 +195,11 @@ func (a *App) Close(ctx context.Context) error {
 	}
 	if a.MeterProvider != nil {
 		errs = append(errs, a.MeterProvider.Shutdown(ctx))
+	}
+	if a.LogProvider != nil {
+		// Flushes and shuts down the OTLP log pipeline so no buffered records
+		// are dropped on exit.
+		errs = append(errs, a.LogProvider.Shutdown(ctx))
 	}
 	if a.Redis != nil {
 		errs = append(errs, a.Redis.Close())

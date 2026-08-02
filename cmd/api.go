@@ -58,7 +58,10 @@ var apiCmd = &cobra.Command{
 		if err := execPreRun(ctx, app); err != nil {
 			return err
 		}
-		eg, ctx := errgroup.WithContext(ctx)
+		// app.Context() carries the logger teed to the OTLP collector (see
+		// otellog.Integrate); deriving from it keeps every server log — and the
+		// request-scoped logs via http.Server BaseContext — exported.
+		eg, ctx := errgroup.WithContext(app.Context())
 		eg.Go(func() error {
 			return app.StartMetricsServer(ctx, app.MetricsHandler)
 		})

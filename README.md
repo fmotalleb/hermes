@@ -89,6 +89,14 @@ Key environment variables:
 | `TRACER_HEADERS` | `` | Extra headers for OTLP requests as a JSON object, e.g. `{"api-key":"abc","x-tenant":"42"}` (legacy comma-separated `key=value` pairs also accepted). Sent on both HTTP and gRPC; overrides the URL's basic auth for the same header. |
 | `LOG_URL` | `` | OpenTelemetry log collector URL (`http://`/`https://` OTLP/HTTP, or a bare `host:port` endpoint, e.g. `http://localhost:4318`). Empty disables OTLP log export. |
 | `LOG_HEADERS` | `` | Extra headers for OTLP log requests as a JSON object, e.g. `{"api-key":"abc"}` (legacy comma-separated `key=value` pairs also accepted). |
+| `LOG_QUEUE_SIZE` | `2048` | Max records buffered in the OTLP log batch processor queue before export. |
+| `LOG_EXPORT_INTERVAL` | `1s` | How often the OTLP log batch processor exports a batch. |
+| `LOG_EXPORT_TIMEOUT` | `30s` | Timeout for each OTLP log batch export. |
+| `LOG_MAX_BATCH_SIZE` | `512` | Max records per exported OTLP log batch. |
+| `LOG_EXPORT_BUFFER_SIZE` | `1` | Per-export copy buffer for the OTLP log batch processor. |
+| `LOG_EXPORTER_TIMEOUT` | `10s` | Per-request timeout for the OTLP log HTTP exporter. |
+| `LOG_MAX_REQUEST_SIZE` | `64 MiB` | Max OTLP log request body size. |
+| `LOG_COMPRESSION` | `` | OTLP log request compression; set to `gzip` to enable. |
 
 ### Running with Docker Compose
 

@@ -1,14 +1,16 @@
 package runtime
 
 import (
+	"context"
 	"fmt"
-	"log"
 	"net"
 	"strconv"
 	"time"
 
 	"github.com/fmotalleb/go-tools/env"
+	"github.com/fmotalleb/go-tools/log"
 	"github.com/joho/godotenv"
+	"go.uber.org/zap"
 )
 
 // Config holds all configuration values loaded from environment variables.
@@ -39,6 +41,14 @@ type Config struct {
 	TracerRatio         float64
 	LogURL              string
 	LogHeaders          string
+	LogQueueSize        int           // LOG_QUEUE_SIZE (default 2048)
+	LogExportInterval   time.Duration // LOG_EXPORT_INTERVAL (default 1s)
+	LogExportTimeout    time.Duration // LOG_EXPORT_TIMEOUT (default 30s)
+	LogMaxBatchSize     int           // LOG_MAX_BATCH_SIZE (default 512)
+	LogExportBufferSize int           // LOG_EXPORT_BUFFER_SIZE (default 1)
+	LogExporterTimeout  time.Duration // LOG_EXPORTER_TIMEOUT (default 10s)
+	LogMaxRequestSize   int           // LOG_MAX_REQUEST_SIZE (default 64 MiB)
+	LogCompression      string        // LOG_COMPRESSION ("gzip" enables gzip)
 	PubSubBackend       string
 
 	// DNS specific section
@@ -58,11 +68,11 @@ type Config struct {
 }
 
 // LoadConfig reads environment variables and returns a fully populated Config.
-// It panics if the .env file cannot be loaded.
-func LoadConfig() Config {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
+// It exits the process through the context logger if the .env file cannot be
+// loaded.
+func LoadConfig(ctx context.Context) Config {
+	if err := godotenv.Load(); err != nil {
+		log.Of(ctx).Fatal("failed to load .env file", zap.Error(err))
 	}
 	return Config{
 		InstanceName: env.Or("INSTANCE_NAME", "server"),
@@ -97,8 +107,16 @@ func LoadConfig() Config {
 		TracerRatio:   env.Float64Or("TRACER_RATIO", 1),
 
 		// OTEL log export
-		LogURL:     env.Or("LOG_URL", ""),
-		LogHeaders: env.Or("LOG_HEADERS", ""),
+		LogURL:              env.Or("LOG_URL", ""),
+		LogHeaders:          env.Or("LOG_HEADERS", ""),
+		LogQueueSize:        env.IntOr("LOG_QUEUE_SIZE", 2048),
+		LogExportInterval:   env.DurationOr("LOG_EXPORT_INTERVAL", time.Second),
+		LogExportTimeout:    env.DurationOr("LOG_EXPORT_TIMEOUT", 30*time.Second),
+		LogMaxBatchSize:     env.IntOr("LOG_MAX_BATCH_SIZE", 512),
+		LogExportBufferSize: env.IntOr("LOG_EXPORT_BUFFER_SIZE", 1),
+		LogExporterTimeout:  env.DurationOr("LOG_EXPORTER_TIMEOUT", 10*time.Second),
+		LogMaxRequestSize:   env.IntOr("LOG_MAX_REQUEST_SIZE", 64*1024*1024),
+		LogCompression:      env.Or("LOG_COMPRESSION", ""),
 
 		// DNS
 		DNSCacheBackend: env.Or("DNS_CACHE_BACKEND", "memory"),

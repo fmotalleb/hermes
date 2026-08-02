@@ -8,19 +8,28 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var logLevel = "info"
-
 var rootCmd = &cobra.Command{
 	Use:   "hermes",
 	Short: "Hermes DNS admin tooling",
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		preRunFromArgs(cmd)
 		lvl, err := cmd.Flags().GetString("log-level")
-		if err != nil || lvl == "" {
+		if err != nil || !cmd.Flags().Changed("log-level") {
 			return
 		}
-		logLevel = lvl
-		preRunFromArgs(cmd)
+		// The base logger is built from the environment in Execute(), before
+		// flags are parsed. When -l is explicitly passed, rebuild it with the
+		// requested level (preserving the rest of the env configuration) and
+		// re-attach it to the context so every subcommand — and the OTLP tee
+		// added in runtime.New — sees it.
+		ctx, err := log.WithNewLogger(cmd.Context(), func(b *log.Builder) *log.Builder {
+			return b.FromEnv().Level(lvl)
+		})
+		if err != nil {
+			return
+		}
+		cmd.SetContext(ctx)
 	},
 }
 

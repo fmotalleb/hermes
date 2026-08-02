@@ -50,14 +50,15 @@ var proxyCmd = &cobra.Command{
 			return err
 		}
 
-		eg, ctx := errgroup.WithContext(ctx)
+		// app.Context() carries the logger teed to the OTLP collector (see
+		// otellog.Integrate); deriving from it keeps every server log exported
+		// and lets the proxy's routers derive their named children.
+		eg, ctx := errgroup.WithContext(app.Context())
 		eg.Go(func() error {
 			return app.StartMetricsServer(ctx, app.MetricsHandler)
 		})
 		eg.Go(func() error {
-			// app.Context() carries the context logger so the proxy's routers
-			// can derive their named children from it.
-			return p.Serve(app.Context())
+			return p.Serve(ctx)
 		})
 		return eg.Wait()
 	},

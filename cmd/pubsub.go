@@ -4,15 +4,16 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ThreeDotsLabs/watermill"
+	"github.com/fmotalleb/go-tools/log"
 
 	"github.com/fmotalleb/hermes/pubsub"
 	"github.com/fmotalleb/hermes/runtime"
 )
 
 func newPubSubBus(cfg runtime.Config, app *runtime.App) (pubsub.Bus, error) {
-	// TODO: add zaplog
-	logger := watermill.NewCaptureLogger()
+	// Route pubsub diagnostics through the context logger so they inherit the
+	// same fields and sinks (including the OTLP tee) as everything else.
+	logger := pubsub.NewZapLoggerAdapter(log.Of(app.Context()).Named("pubsub"))
 
 	group := cfg.PubSubConsumerGroup + "-" + app.ID().String()
 	switch strings.ToLower(strings.TrimSpace(cfg.PubSubBackend)) {
