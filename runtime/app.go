@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"database/sql"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -272,7 +273,8 @@ func newTraceProvider(ctx context.Context, cfg Config, res *resource.Resource) (
 
 // newTraceExporter creates the span exporter matching the scheme of the
 // configured tracer URL. An empty TRACER_URL disables tracing entirely.
-// rawHeaders is the comma-separated TRACER_HEADERS value.
+// rawHeaders is the TRACER_HEADERS value: a JSON object or comma-separated
+// key=value pairs.
 func newTraceExporter(ctx context.Context, raw, rawHeaders string) (sdktrace.SpanExporter, error) {
 	ep, err := parseTraceEndpoint(raw)
 	if err != nil {
@@ -368,10 +370,24 @@ func parseTraceEndpoint(raw string) (traceEndpoint, error) {
 	return ep, nil
 }
 
-// parseTracerHeaders parses the TRACER_HEADERS value: a comma-separated list of
-// key=value pairs, e.g. "api-key=abc,x-tenant=42". Empty entries are ignored;
-// a malformed pair is an error.
+// parseTracerHeaders parses the TRACER_HEADERS value, either as a JSON object
+// of string headers, e.g. `{"api-key":"abc","x-tenant":"42"}`, or as the
+// legacy comma-separated key=value pairs, e.g. "api-key=abc,x-tenant=42". An
+// empty value yields no headers; malformed input is an error.
 func parseTracerHeaders(raw string) (map[string]string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return map[string]string{}, nil
+	}
+
+	if strings.HasPrefix(raw, "{") {
+		var headers map[string]string
+		if err := json.Unmarshal([]byte(raw), &headers); err != nil {
+			return nil, fmt.Errorf("parse tracer headers as json: %w", err)
+		}
+		return headers, nil
+	}
+
 	headers := make(map[string]string)
 	for _, pair := range strings.Split(raw, ",") {
 		pair = strings.TrimSpace(pair)
@@ -381,7 +397,7 @@ func parseTracerHeaders(raw string) (map[string]string, error) {
 		key, value, ok := strings.Cut(pair, "=")
 		key = strings.TrimSpace(key)
 		if !ok || key == "" {
-			return nil, fmt.Errorf("invalid tracer header %q (want key=value)", pair)
+			return nil, fmt.Errorf("invalid tracer header %q (want key=value or json object)", pair)
 		}
 		headers[key] = strings.TrimSpace(value)
 	}

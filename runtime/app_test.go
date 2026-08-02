@@ -125,7 +125,7 @@ func TestHTTPTraceExporterHeaders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse endpoint: %v", err)
 	}
-	ep.headers, err = parseTracerHeaders("X-Api-Key=secret")
+	ep.headers, err = parseTracerHeaders(`{"X-Api-Key":"secret"}`)
 	if err != nil {
 		t.Fatalf("parse headers: %v", err)
 	}
@@ -166,6 +166,12 @@ func TestParseTracerHeaders(t *testing.T) {
 	}{
 		{"empty", "", map[string]string{}, false},
 		{"whitespace only", "   ", map[string]string{}, false},
+		{"json object", `{"api-key":"abc","x-tenant":"42"}`, map[string]string{"api-key": "abc", "x-tenant": "42"}, false},
+		{"json with whitespace", ` { "api-key" : "abc" } `, map[string]string{"api-key": "abc"}, false},
+		{"empty json object", `{}`, map[string]string{}, false},
+		{"json value with comma", `{"a":"b,c"}`, map[string]string{"a": "b,c"}, false},
+		{"invalid json", `{"a":`, nil, true},
+		{"non-string json value", `{"a":42}`, nil, true},
 		{"single pair", "api-key=abc", map[string]string{"api-key": "abc"}, false},
 		{"multiple pairs", "api-key=abc,x-tenant=42", map[string]string{"api-key": "abc", "x-tenant": "42"}, false},
 		{"padded pairs", " api-key = abc , x-tenant=42 ", map[string]string{"api-key": "abc", "x-tenant": "42"}, false},
