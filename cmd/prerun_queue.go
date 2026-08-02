@@ -17,8 +17,8 @@ var preRunTasks = make([]preRunTask, 0)
 
 func preRunFromArgs(cmd *cobra.Command) {
 	if migrate, _ := cmd.Flags().GetBool(migrateFlag); migrate {
-		registerPreRun(func(ctx context.Context, app *runtime.App) error {
-			return migrations.Apply(ctx, app.DB, app.Logger, migrations.All()...)
+		registerPreRun(func(_ context.Context, app *runtime.App) error {
+			return migrations.Apply(app.Context(), app.DB, migrations.All()...)
 		})
 	}
 }

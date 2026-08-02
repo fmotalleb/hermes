@@ -28,7 +28,7 @@ func Integrate(ctx context.Context, url string, headers map[string]string) (cont
 		return ctx, nil, nil
 	}
 
-	exporter, err := otlploghttp.New(ctx, otlplogOptions(url, headers)...)
+	exporter, err := otlploghttp.New(ctx, otlplogOptions(url+"/v1/logs", headers)...)
 	if err != nil {
 		return ctx, nil, fmt.Errorf("create otlp log exporter: %w", err)
 	}

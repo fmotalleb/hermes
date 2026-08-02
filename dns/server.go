@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net"
 
+	"github.com/fmotalleb/go-tools/log"
 	"github.com/miekg/dns"
 	"go.opentelemetry.io/otel"
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/fmotalleb/hermes/cache"
@@ -28,9 +29,10 @@ func Serve(ctx context.Context, app *runtime.App, bus pubsub.Bus, opts ...Server
 		}
 	}
 
+	logger := log.FromContext(ctx).Named("dns")
 	store := &store{
 		db:       app.DB,
-		logger:   app.Logger,
+		logger:   logger,
 		registry: app.ServiceRegistry,
 	}
 	tr := otel.GetTracerProvider().Tracer("dns-server")
@@ -59,7 +61,7 @@ func Serve(ctx context.Context, app *runtime.App, bus pubsub.Bus, opts ...Server
 
 	h := &handler{
 		dnsStore:   store,
-		logger:     app.Logger,
+		logger:     logger,
 		tracer:     tr,
 		cache:      c,
 		cacheTypes: cacheTypes,
@@ -69,18 +71,18 @@ func Serve(ctx context.Context, app *runtime.App, bus pubsub.Bus, opts ...Server
 
 	eg.Go(func() error {
 		return bus.Subscribe(ctx, DNSCacheInvalidTopic, func(_ context.Context, _ []byte) error {
-			app.Logger.Info("received invalidation notice", slog.String("id", app.ID().String()))
+			logger.Info("received invalidation notice", zap.String("id", app.ID().String()))
 			if err := h.cache.Clear(ctx); err != nil {
-				app.Logger.Warn("failed to invalidate cache", slog.String("err", err.Error()))
+				logger.Warn("failed to invalidate cache", zap.Error(err))
 			}
 			return nil
 		})
 	})
 	eg.Go(func() error {
 		return app.ServiceRegistry.OnDelete(ctx, app.Config.RedisDB, registry.ServiceKindProxy, func(_ string) {
-			app.Logger.Info("received invalidation notice, proxy disconnected", slog.String("id", app.ID().String()))
+			logger.Info("received invalidation notice, proxy disconnected", zap.String("id", app.ID().String()))
 			if err := h.cache.Clear(ctx); err != nil {
-				app.Logger.Warn("failed to invalidate cache", slog.String("err", err.Error()))
+				logger.Warn("failed to invalidate cache", zap.Error(err))
 			}
 		})
 	})
@@ -107,7 +109,7 @@ func Serve(ctx context.Context, app *runtime.App, bus pubsub.Bus, opts ...Server
 		return fmt.Errorf("unknown protocol: %d", cfg.protocol)
 	}
 
-	app.Logger.Info("dns server started", "addr", cfg.listenAddr, "protocol", cfg.protocol)
+	logger.Info("dns server started", zap.String("addr", cfg.listenAddr), zap.Any("protocol", cfg.protocol))
 	return eg.Wait()
 }
 

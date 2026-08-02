@@ -2,13 +2,12 @@ package dns
 
 import (
 	"context"
-	"log/slog"
 	"net"
 	"slices"
 
-	"go.opentelemetry.io/otel/trace"
-
 	"github.com/miekg/dns"
+	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 
 	"github.com/fmotalleb/hermes/cache"
 	"github.com/fmotalleb/hermes/models"
@@ -25,10 +24,19 @@ type dnsStore interface {
 
 type handler struct {
 	dnsStore
-	logger     *slog.Logger
+	logger     *zap.Logger
 	tracer     trace.Tracer
 	cache      cache.Cache
 	cacheTypes []uint16
+}
+
+// log returns the handler logger, or a nop logger when none was configured
+// (e.g. in tests that construct a bare handler).
+func (h *handler) log() *zap.Logger {
+	if h.logger == nil {
+		return zap.NewNop()
+	}
+	return h.logger
 }
 
 func (h *handler) shouldCache(q dns.Question) bool {

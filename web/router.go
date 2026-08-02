@@ -9,6 +9,10 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
+
+	"github.com/fmotalleb/go-tools/log"
+	"go.uber.org/zap"
 )
 
 type (
@@ -65,6 +69,39 @@ func NewRouter() *Router {
 // Use appends middlewares to the router's middleware chain.
 func (r *Router) Use(middlewares ...Middleware) {
 	r.middlewares = append(r.middlewares, middlewares...)
+}
+
+// RequestLogger registers middleware that logs every HTTP request with its
+// method, path, status code, duration, and remote address. The logger is read
+// from the request context (see log.FromContext), so it should be registered
+// before auth or other middlewares to also cover rejected requests.
+func (r *Router) RequestLogger() {
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			start := time.Now()
+			rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+			next.ServeHTTP(rec, req)
+
+			log.FromContext(req.Context()).Named("http").Info("request",
+				zap.String("method", req.Method),
+				zap.String("path", req.URL.Path),
+				zap.Int("status", rec.status),
+				zap.Duration("duration", time.Since(start)),
+				zap.String("remote", req.RemoteAddr),
+			)
+		})
+	})
+}
+
+// statusRecorder captures the response status code for request logging.
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *statusRecorder) WriteHeader(status int) {
+	w.status = status
+	w.ResponseWriter.WriteHeader(status)
 }
 
 // Handle registers a route with the given HTTP method, URL pattern, and handler.

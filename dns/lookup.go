@@ -3,13 +3,13 @@ package dns
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/miekg/dns"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 
 	"github.com/fmotalleb/hermes/models"
 )
@@ -21,7 +21,7 @@ func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		if err != nil {
 			span.RecordError(fmt.Errorf("dns panic: %s", err))
 			span.SetStatus(codes.Error, "dns panic recovered")
-			h.logger.Error("fatal error recovered", slog.Any("error", err))
+			h.log().Error("fatal error recovered", zap.Any("error", err))
 		}
 	}()
 
@@ -57,7 +57,7 @@ func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			attribute.String("error", err.Error()),
 		))
 		span.SetStatus(codes.Error, "failed to lookup the domain")
-		h.logger.Error("dns lookup failed", slog.Any("error", err))
+		h.log().Error("dns lookup failed", zap.Error(err))
 		msg := new(dns.Msg)
 		msg.SetRcode(r, dns.RcodeServerFailure)
 		writeAnswer(w, msg, span)

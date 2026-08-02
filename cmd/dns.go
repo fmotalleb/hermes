@@ -54,7 +54,7 @@ var dnsCmd = &cobra.Command{
 			return app.StartMetricsServer(ctx, app.MetricsHandler)
 		})
 		eg.Go(func() error {
-			return dns.Serve(ctx, app, bus, dnsOpts...)
+			return dns.Serve(app.Context(), app, bus, dnsOpts...)
 		})
 		return eg.Wait()
 	},

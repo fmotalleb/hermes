@@ -33,6 +33,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -78,15 +79,19 @@ func New(ctx context.Context, kind string, logger *slog.Logger) (*App, error) {
 		logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	}
 
-	// OTEL log export: attach a zap logger to the context and bridge it to the
-	// configured collector, so services logging through log.FromContext also
-	// export to OTLP when LOG_URL is set.
+	// Attach a zap logger to the context so every component can log through
+	// log.FromContext(ctx), even when OTLP log export is disabled. The level
+	// mirrors the slog logger used for startup logs (the --log-level flag).
+	if ctx, err = gtlog.WithNewLogger(ctx, func(b *gtlog.Builder) *gtlog.Builder {
+		return b.Name("hermes").LevelValue(logLevelFromSlog(logger))
+	}); err != nil {
+		return nil, fmt.Errorf("create context logger: %w", err)
+	}
+
+	// OTEL log export: when LOG_URL is set, tee the context logger to the
+	// configured collector so every record emitted through log.FromContext is
+	// exported as well.
 	if strings.TrimSpace(cfg.LogURL) != "" {
-		if ctx, err = gtlog.WithNewLogger(ctx, func(b *gtlog.Builder) *gtlog.Builder {
-			return b.Name("hermes")
-		}); err != nil {
-			return nil, fmt.Errorf("create context logger: %w", err)
-		}
 		var headers map[string]string
 		if headers, err = parseOTLPHeaders(cfg.LogHeaders); err != nil {
 			return nil, fmt.Errorf("parse log headers: %w", err)
@@ -175,6 +180,21 @@ func New(ctx context.Context, kind string, logger *slog.Logger) (*App, error) {
 // logger (see log.FromContext) and any other values attached during bootstrap.
 func (a *App) Context() context.Context {
 	return a.ctx
+}
+
+// logLevelFromSlog maps the most verbose level enabled on logger to the
+// equivalent zap level, so the context logger honors the --log-level flag.
+func logLevelFromSlog(logger *slog.Logger) zapcore.Level {
+	if logger.Enabled(context.Background(), slog.LevelDebug) {
+		return zapcore.DebugLevel
+	}
+	if logger.Enabled(context.Background(), slog.LevelInfo) {
+		return zapcore.InfoLevel
+	}
+	if logger.Enabled(context.Background(), slog.LevelWarn) {
+		return zapcore.WarnLevel
+	}
+	return zapcore.ErrorLevel
 }
 
 func (a *App) ID() uuid.UUID {

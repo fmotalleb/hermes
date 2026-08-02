@@ -5,8 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net"
+
+	"go.uber.org/zap"
 
 	"github.com/fmotalleb/hermes/models"
 	"github.com/fmotalleb/hermes/registry"
@@ -14,7 +15,7 @@ import (
 
 type store struct {
 	db       *sql.DB
-	logger   *slog.Logger
+	logger   *zap.Logger
 	registry *registry.RegistryConnection
 }
 
@@ -197,6 +198,14 @@ WHERE record_type = $1;`
 	return hijacks, rows.Err()
 }
 
+// log returns the store logger, or a nop logger when none was configured.
+func (s *store) log() *zap.Logger {
+	if s.logger == nil {
+		return zap.NewNop()
+	}
+	return s.logger
+}
+
 func (s *store) lookupHijacks(ctx context.Context, qtype models.DNSRecordType) ([]hijackRow, bool) {
 	hijacks, err := s.findHijacks(ctx, qtype)
 	if err != nil {
@@ -204,7 +213,7 @@ func (s *store) lookupHijacks(ctx context.Context, qtype models.DNSRecordType) (
 			return nil, false
 		}
 
-		s.logger.Error("hijacks lookup failed", "error", err, "type", qtype)
+		s.log().Error("hijacks lookup failed", zap.Error(err), zap.String("type", string(qtype)))
 		return nil, false
 	}
 

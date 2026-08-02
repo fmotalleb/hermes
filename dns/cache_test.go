@@ -12,7 +12,8 @@ import (
 
 func TestDNSResponseCacheRoundTrip(t *testing.T) {
 	h := &handler{
-		cache: cache.NewMemoryCache(t.Context()),
+		cache:      cache.NewMemoryCache(t.Context()),
+		cacheTypes: []uint16{dns.TypeA},
 	}
 
 	req := new(dns.Msg)

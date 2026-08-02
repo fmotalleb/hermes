@@ -8,6 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fmotalleb/go-tools/log"
+	"go.uber.org/zap"
+
 	"github.com/fmotalleb/hermes/cache"
 	"github.com/fmotalleb/hermes/dns"
 	"github.com/fmotalleb/hermes/models"
@@ -64,19 +67,26 @@ func (r *repository) invalidateZonesCache(ctx context.Context) {
 		return
 	}
 
+	logger := log.FromContext(ctx).Named("api.repository")
 	version := r.zonesCacheVersion(ctx) + 1
 	buf, err := json.Marshal(version)
 	if err != nil {
 		return
 	}
-	_ = r.cache.Set(ctx, zonesCacheVersionKey, buf, 24*time.Hour)
+	if err := r.cache.Set(ctx, zonesCacheVersionKey, buf, 24*time.Hour); err != nil {
+		logger.Debug("failed to bump zones cache version", zap.Error(err))
+		return
+	}
+	logger.Debug("zones cache invalidated", zap.Uint64("version", version))
 }
 
 func (r *repository) invalidateDNSCache(ctx context.Context) {
 	if r.pubsub == nil {
 		return
 	}
-	_ = r.pubsub.Publish(ctx, dns.DNSCacheInvalidTopic, []byte{})
+	if err := r.pubsub.Publish(ctx, dns.DNSCacheInvalidTopic, []byte{}); err != nil {
+		log.FromContext(ctx).Named("api.repository").Debug("failed to publish dns cache invalidation", zap.Error(err))
+	}
 }
 
 func (r *repository) getZones(ctx context.Context, limit, offset uint32) ([]models.ZoneData, error) {

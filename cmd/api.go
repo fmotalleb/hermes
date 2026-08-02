@@ -39,6 +39,7 @@ var apiCmd = &cobra.Command{
 		defer bus.Close()
 
 		router := web.NewRouter()
+		router.RequestLogger()
 		router.Use(auth.Middleware(app.Config))
 
 		// TODO: read from env
@@ -50,7 +51,7 @@ var apiCmd = &cobra.Command{
 			app,
 			cache.NewRedisCache(app.Redis, "api"),
 			bus,
-			migrations.NewRunner(app.DB, app.Logger),
+			migrations.NewRunner(app.DB),
 			app.MetricsHandler,
 		)
 		static.Register(router)
