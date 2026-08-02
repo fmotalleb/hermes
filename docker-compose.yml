@@ -39,12 +39,12 @@ services:
       RABBITMQ_DEFAULT_USER: hermes
       RABBITMQ_DEFAULT_PASS: hermes
       RABBITMQ_DEFAULT_VHOST: /
-  jaeger:
-    image: jaegertracing/jaeger:latest
-    ports:
-      - "16686:16686"
-      - "4317:4317"
-      - "4318:4318"
+  # jaeger:
+  #   image: jaegertracing/jaeger:latest
+  #   ports:
+  #     - "16686:16686"
+  #     - "4317:4317"
+  #     - "4318:4318"
 
 volumes:
   pgdata:

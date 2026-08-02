@@ -85,7 +85,8 @@ Key environment variables:
 | `REDIS_HOST` | `` | Redis host |
 | `PUBSUB_BACKEND` | `redis` | Pubsub backend (`redis`, `gochannel`, `kafka`, `postgres`, `rabbitmq`) |
 | `DNS_CACHE_BACKEND` | `memory` | Cache backend (`redis`, `memory`, `none`) |
-| `TRACE_EXPORTER` | `` | OpenTelemetry exporter (`otlp`, `jaeger` or empty) |
+| `TRACER_URL` | `` | OpenTelemetry collector URL; the scheme selects the exporter (`grpc://`/`jaeger://` gRPC, `grpcs://` TLS gRPC, `http://`/`https://` OTLP/HTTP), optionally `user:pass@` for basic auth, then the collector address (include the port, e.g. `grpc://localhost:4317`). Empty disables tracing. |
+| `TRACER_HEADERS` | `` | Extra headers for OTLP requests, comma-separated `key=value` pairs (e.g. `api-key=abc,x-tenant=42`). Sent on both HTTP and gRPC; overrides the URL's basic auth for the same header. |
 
 ### Running with Docker Compose
 

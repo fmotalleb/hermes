@@ -34,8 +34,8 @@ type Config struct {
 	PubSubBrokers       string
 	PubSubRabbitMQURI   string
 	PubSubConsumerGroup string
-	TraceExporter       string
 	TracerURL           string
+	TracerHeaders       string
 	TracerRatio         float64
 	PubSubBackend       string
 
@@ -90,8 +90,8 @@ func LoadConfig() Config {
 		PubSubBackend:       env.Or("PUBSUB_BACKEND", "redis"),
 
 		// OTEL tracer
-		TraceExporter: env.Or("TRACE_EXPORTER", ""),
 		TracerURL:     env.Or("TRACER_URL", ""),
+		TracerHeaders: env.Or("TRACER_HEADERS", ""),
 		TracerRatio:   env.Float64Or("TRACER_RATIO", 1),
 
 		// DNS

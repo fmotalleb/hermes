@@ -2,12 +2,15 @@ package runtime
 
 import (
 	"context"
+	"crypto/tls"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -21,6 +24,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/metric"
@@ -28,6 +32,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/fmotalleb/hermes/registry"
@@ -240,7 +245,7 @@ func setupTelemetry(ctx context.Context, cfg Config, logger *slog.Logger) (*sdkt
 		metric.WithReader(promExporter),
 	)
 
-	logger.Info("telemetry configured", "trace_exporter", cfg.TraceExporter, "tracer_url", cfg.TracerURL)
+	logger.Info("telemetry configured", "tracer_url", cfg.TracerURL)
 	return traceProvider, meterProvider, promhttp.HandlerFor(registry, promhttp.HandlerOpts{}), nil
 }
 
@@ -248,21 +253,11 @@ func newTraceProvider(ctx context.Context, cfg Config, res *resource.Resource) (
 	sampler := sdktrace.ParentBased(sdktrace.TraceIDRatioBased(cfg.TracerRatio))
 
 	var exporter sdktrace.SpanExporter
-	var err error
-	switch strings.ToLower(cfg.TraceExporter) {
-	case "otlp", "otel", "jaeger":
-		conn, connErr := grpcDial(ctx, cfg.TracerURL)
-		if connErr != nil {
-			return nil, connErr
+	if target := strings.TrimSpace(cfg.TracerURL); target != "" {
+		var err error
+		if exporter, err = newTraceExporter(ctx, target, cfg.TracerHeaders); err != nil {
+			return nil, err
 		}
-		exporter, err = otlptracegrpc.New(ctx,
-			otlptracegrpc.WithGRPCConn(conn),
-		)
-	default:
-		exporter = nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("create trace exporter: %w", err)
 	}
 
 	opts := []sdktrace.TracerProviderOption{
@@ -275,6 +270,161 @@ func newTraceProvider(ctx context.Context, cfg Config, res *resource.Resource) (
 	return sdktrace.NewTracerProvider(opts...), nil
 }
 
-func grpcDial(_ context.Context, target string) (*grpc.ClientConn, error) {
-	return grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+// newTraceExporter creates the span exporter matching the scheme of the
+// configured tracer URL. An empty TRACER_URL disables tracing entirely.
+// rawHeaders is the comma-separated TRACER_HEADERS value.
+func newTraceExporter(ctx context.Context, raw, rawHeaders string) (sdktrace.SpanExporter, error) {
+	ep, err := parseTraceEndpoint(raw)
+	if err != nil {
+		return nil, err
+	}
+	if ep.headers, err = parseTracerHeaders(rawHeaders); err != nil {
+		return nil, err
+	}
+
+	switch ep.kind {
+	case "grpc", "grpcs":
+		return newGRPCTraceExporter(ctx, ep)
+	case "http", "https":
+		return newHTTPTraceExporter(ctx, ep)
+	default:
+		return nil, fmt.Errorf("unsupported tracer scheme %q", ep.kind)
+	}
+}
+
+func newGRPCTraceExporter(ctx context.Context, ep traceEndpoint) (sdktrace.SpanExporter, error) {
+	creds := insecure.NewCredentials()
+	if ep.kind == "grpcs" {
+		creds = credentials.NewTLS(&tls.Config{})
+	}
+	dialOpts := []grpc.DialOption{grpc.WithTransportCredentials(creds)}
+	if ep.user != "" || len(ep.headers) > 0 {
+		dialOpts = append(dialOpts, grpc.WithPerRPCCredentials(rpcMetadata{
+			username: ep.user,
+			password: ep.pass,
+			headers:  ep.headers,
+		}))
+	}
+
+	conn, err := grpc.NewClient(ep.url, dialOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("dial tracer %q: %w", ep.url, err)
+	}
+	return otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(conn))
+}
+
+func newHTTPTraceExporter(ctx context.Context, ep traceEndpoint) (sdktrace.SpanExporter, error) {
+	opts := []otlptracehttp.Option{otlptracehttp.WithEndpointURL(ep.url)}
+	if headers := mergeTracerHeaders(ep.headers, ep.user, ep.pass); len(headers) > 0 {
+		opts = append(opts, otlptracehttp.WithHeaders(headers))
+	}
+	return otlptracehttp.New(ctx, opts...)
+}
+
+// traceEndpoint is a parsed tracer URL: the exporter kind derived from the URL
+// scheme, the collector address, optional basic auth credentials, and extra
+// headers to attach to every OTLP request.
+type traceEndpoint struct {
+	kind    string // "grpc", "grpcs", "http" or "https"
+	url     string // collector address without credentials
+	user    string
+	pass    string
+	headers map[string]string
+}
+
+// parseTraceEndpoint derives the exporter kind from the URL scheme and splits
+// the remaining URL into address and optional basic auth credentials.
+func parseTraceEndpoint(raw string) (traceEndpoint, error) {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return traceEndpoint{}, fmt.Errorf("parse tracer url %q: %w", raw, err)
+	}
+
+	kind := strings.ToLower(u.Scheme)
+	switch kind {
+	case "jaeger":
+		kind = "grpc"
+	case "grpc", "grpcs", "http", "https":
+	default:
+		return traceEndpoint{}, fmt.Errorf("unsupported tracer url scheme %q (want grpc, jaeger, grpcs, http or https)", u.Scheme)
+	}
+
+	if u.Host == "" {
+		return traceEndpoint{}, fmt.Errorf("tracer url %q is missing an address", raw)
+	}
+
+	ep := traceEndpoint{kind: kind, url: u.Host}
+	if u.User != nil {
+		ep.user = u.User.Username()
+		ep.pass, _ = u.User.Password()
+	}
+	if kind == "http" || kind == "https" {
+		// Keep scheme and path for the HTTP exporter, but drop credentials and
+		// trailing slashes so the default /v1/traces path is not overridden by "/".
+		u.User = nil
+		u.Path = strings.TrimRight(u.Path, "/")
+		ep.url = u.String()
+	}
+	return ep, nil
+}
+
+// parseTracerHeaders parses the TRACER_HEADERS value: a comma-separated list of
+// key=value pairs, e.g. "api-key=abc,x-tenant=42". Empty entries are ignored;
+// a malformed pair is an error.
+func parseTracerHeaders(raw string) (map[string]string, error) {
+	headers := make(map[string]string)
+	for _, pair := range strings.Split(raw, ",") {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		key, value, ok := strings.Cut(pair, "=")
+		key = strings.TrimSpace(key)
+		if !ok || key == "" {
+			return nil, fmt.Errorf("invalid tracer header %q (want key=value)", pair)
+		}
+		headers[key] = strings.TrimSpace(value)
+	}
+	return headers, nil
+}
+
+// mergeTracerHeaders merges the custom headers with the basic auth derived from
+// the URL. An explicitly configured authorization header wins over the URL's
+// basic auth.
+func mergeTracerHeaders(custom map[string]string, user, pass string) map[string]string {
+	headers := make(map[string]string, len(custom)+1)
+	for k, v := range custom {
+		headers[k] = v
+	}
+	if user != "" && !headerKeyExists(headers, "authorization") {
+		headers["authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte(user+":"+pass))
+	}
+	return headers
+}
+
+// headerKeyExists reports whether headers contains key, ignoring case.
+func headerKeyExists(headers map[string]string, key string) bool {
+	for k := range headers {
+		if strings.EqualFold(k, key) {
+			return true
+		}
+	}
+	return false
+}
+
+// rpcMetadata implements grpc credentials.PerRPCCredentials, sending custom
+// headers and optional basic auth as per-RPC metadata. Credentials are sent in
+// plaintext when used over an insecure grpc:// transport.
+type rpcMetadata struct {
+	username string
+	password string
+	headers  map[string]string
+}
+
+func (m rpcMetadata) GetRequestMetadata(_ context.Context, _ ...string) (map[string]string, error) {
+	return mergeTracerHeaders(m.headers, m.username, m.password), nil
+}
+
+func (rpcMetadata) RequireTransportSecurity() bool {
+	return false
 }
