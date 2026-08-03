@@ -14,7 +14,7 @@
 - **PubSub Messaging** — Multiple backends: Go channels (in-process), Redis Streams, Kafka, PostgreSQL, RabbitMQ
 - **Service Registry** — Redis-based service discovery with heartbeat health tracking
 - **Caching** — Configurable caching with Redis, in-memory (Otter), or no-op backends
-- **OpenTelemetry** — Distributed tracing with OTLP/ Jaeger exporters, Prometheus metrics
+- **OpenTelemetry** — Distributed tracing with OTLP/ Jaeger exporters, OTLP metric push, Prometheus metrics
 - **REST API** — Full CRUD API for zones, records, forward zones, hijacks, and settings
 - **Database Migrations** — Built-in PostgreSQL migration system
 
@@ -97,6 +97,9 @@ Key environment variables:
 | `LOG_EXPORTER_TIMEOUT` | `10s` | Per-request timeout for the OTLP log HTTP exporter. |
 | `LOG_MAX_REQUEST_SIZE` | `64 MiB` | Max OTLP log request body size. |
 | `LOG_COMPRESSION` | `` | OTLP log request compression; set to `gzip` to enable. |
+| `METRIC_PUSH_URL` | `` | OpenTelemetry collector URL for pushing metrics. Uses the exact same URL handling as `TRACER_URL` (`grpc://`/`jaeger://` gRPC, `grpcs://` TLS gRPC, `http://`/`https://` OTLP/HTTP, optional `user:pass@` basic auth) and also accepts a bare `host:port` like `LOG_URL`. Empty disables OTLP metric push; the Prometheus `/metrics` endpoint (via `METRICS_PORT`) stays available. |
+| `METRIC_PUSH_HEADERS` | `` | Extra headers for OTLP metric push requests as a JSON object, e.g. `{"api-key":"abc"}` (legacy comma-separated `key=value` pairs also accepted). |
+| `METRIC_PUSH_INTERVAL` | `60s` | How often metrics are collected and pushed to the collector. |
 
 Request-scoped logs (HTTP access logs, API handler logs, DNS query logs) carry the active span's trace context, so exported log records are correlated with traces by trace id/span id. The raw trace id is also attached as a `trace_id` field on request logs.
 

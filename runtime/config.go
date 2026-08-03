@@ -41,6 +41,9 @@ type Config struct {
 	TracerRatio         float64
 	LogURL              string
 	LogHeaders          string
+	MetricPushURL       string        // METRIC_PUSH_URL (OTLP metric push collector URL)
+	MetricPushHeaders   string        // METRIC_PUSH_HEADERS (JSON object or key=value pairs)
+	MetricPushInterval  time.Duration // METRIC_PUSH_INTERVAL (default 60s)
 	LogQueueSize        int           // LOG_QUEUE_SIZE (default 2048)
 	LogExportInterval   time.Duration // LOG_EXPORT_INTERVAL (default 1s)
 	LogExportTimeout    time.Duration // LOG_EXPORT_TIMEOUT (default 30s)
@@ -117,6 +120,11 @@ func LoadConfig(ctx context.Context) Config {
 		LogExporterTimeout:  env.DurationOr("LOG_EXPORTER_TIMEOUT", 10*time.Second),
 		LogMaxRequestSize:   env.IntOr("LOG_MAX_REQUEST_SIZE", 64*1024*1024),
 		LogCompression:      env.Or("LOG_COMPRESSION", ""),
+
+		// OTEL metric push export (same URL/header parsing as the tracer and log connectors)
+		MetricPushURL:      env.Or("METRIC_PUSH_URL", ""),
+		MetricPushHeaders:  env.Or("METRIC_PUSH_HEADERS", ""),
+		MetricPushInterval: env.DurationOr("METRIC_PUSH_INTERVAL", time.Minute),
 
 		// DNS
 		DNSCacheBackend: env.Or("DNS_CACHE_BACKEND", "memory"),
