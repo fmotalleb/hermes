@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"slices"
+	"sync"
 
 	"github.com/miekg/dns"
 	"go.opentelemetry.io/otel/trace"
@@ -28,6 +29,19 @@ type handler struct {
 	tracer     trace.Tracer
 	cache      cache.Cache
 	cacheTypes []uint16
+
+	metricsOnce sync.Once
+	metrics     *dnsMetrics
+}
+
+// m returns the handler's metric instruments, creating them on first use so
+// they bind to the meter provider configured by the runtime. When no provider
+// is configured (e.g. in tests) the instruments are no-ops.
+func (h *handler) m() *dnsMetrics {
+	h.metricsOnce.Do(func() {
+		h.metrics = newDNSMetrics()
+	})
+	return h.metrics
 }
 
 // log returns the handler logger, or a nop logger when none was configured

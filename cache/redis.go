@@ -16,10 +16,10 @@ type redisCache struct {
 // NewRedisCache creates a Redis-backed cache. All keys are namespaced under baseKey
 // to allow multiple independent caches to share the same Redis instance.
 func NewRedisCache(db *redis.Client, baseKey string) Cache {
-	return withLogging(&redisCache{
+	return withMetrics(withLogging(&redisCache{
 		db:      db,
 		baseKey: baseKey,
-	})
+	}))
 }
 
 func (r *redisCache) key(k string) string {

@@ -22,6 +22,8 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/propagation"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace"
@@ -50,6 +52,46 @@ type watermillBus struct {
 	closeErr   error
 	tracer     trace.Tracer
 	propagator propagation.TextMapPropagator
+
+	metricsOnce sync.Once
+	metrics     *busMetrics
+}
+
+// m returns the bus metric instruments, creating them on first use so they
+// bind to the meter provider configured by the runtime. When no provider is
+// configured (e.g. in tests) the instruments are no-ops.
+func (b *watermillBus) m() *busMetrics {
+	b.metricsOnce.Do(func() {
+		b.metrics = newBusMetrics()
+	})
+	return b.metrics
+}
+
+// busMetrics holds the OpenTelemetry instruments used by the pubsub bus.
+type busMetrics struct {
+	published metric.Int64Counter // messaging.publish.messages (topic)
+	processed metric.Int64Counter // messaging.process.messages (topic, result)
+}
+
+func newBusMetrics() *busMetrics {
+	meter := otel.Meter("pubsub")
+	published, err := meter.Int64Counter(
+		"messaging.publish.messages",
+		metric.WithDescription("Number of messages published"),
+		metric.WithUnit("{message}"),
+	)
+	if err != nil {
+		published = noop.Int64Counter{}
+	}
+	processed, err := meter.Int64Counter(
+		"messaging.process.messages",
+		metric.WithDescription("Number of messages processed"),
+		metric.WithUnit("{message}"),
+	)
+	if err != nil {
+		processed = noop.Int64Counter{}
+	}
+	return &busMetrics{published: published, processed: processed}
 }
 
 // BusOption configures a watermill-based pubsub bus.
@@ -277,6 +319,7 @@ func (b *watermillBus) Publish(ctx context.Context, topic string, payload []byte
 		return err
 	}
 
+	b.m().published.Add(ctx, 1, metric.WithAttributes(semconv.MessagingDestinationName(topic)))
 	return nil
 }
 
@@ -326,12 +369,15 @@ func (b *watermillBus) handleMessage(_ context.Context, topic string, msg *messa
 	)
 	defer span.End()
 
+	attrs := []attribute.KeyValue{semconv.MessagingDestinationName(topic)}
 	if err := handler(msgCtx, msg.Payload); err != nil {
+		b.m().processed.Add(msgCtx, 1, metric.WithAttributes(append(attrs, attribute.String("result", "error"))...))
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		msg.Nack()
 		return err
 	}
+	b.m().processed.Add(msgCtx, 1, metric.WithAttributes(append(attrs, attribute.String("result", "success"))...))
 	span.SetAttributes(semconv.MessagingOperationTypeSettle)
 	span.SetStatus(codes.Ok, "message processed successfully")
 	msg.Ack()

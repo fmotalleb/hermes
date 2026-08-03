@@ -3,11 +3,13 @@ package dns
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/miekg/dns"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -47,6 +49,7 @@ func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	// native trace id and span id for correlation.
 	logger := h.log().With(otellog.TraceContextField(ctx))
 	typeStr := dns.Type(q.Qtype).String()
+	qtypeAttr := attribute.String("qtype", typeStr)
 
 	// Build the query fields lazily: Check returns nil when debug is disabled,
 	// so the client address formatting and field slice are not allocated per
@@ -62,6 +65,9 @@ func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		ce.Write(fields...)
 	}
 
+	m := h.m()
+	m.queries.Add(ctx, 1, metric.WithAttributes(qtypeAttr))
+
 	if resp, ok := h.cachedResponse(ctx, r); ok {
 		span.AddEvent("cache hit", trace.WithAttributes(
 			attribute.String("name", q.Name),
@@ -72,6 +78,8 @@ func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			zap.String("name", q.Name),
 			zap.String("type", typeStr),
 		)
+		m.cacheHits.Add(ctx, 1, metric.WithAttributes(qtypeAttr))
+		recordResponse(m, ctx, typeStr, resp.Rcode)
 		writeAnswer(w, resp, span)
 		return
 	}
@@ -80,8 +88,17 @@ func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		zap.String("name", q.Name),
 		zap.String("type", typeStr),
 	)
+	// Only count a miss when the cache was actually consulted: query types not
+	// in DNS_CACHE_TYPES never reach the cache and are not misses.
+	if h.cache != nil && h.shouldCache(q) {
+		m.cacheMisses.Add(ctx, 1, metric.WithAttributes(qtypeAttr))
+	}
+
+	start := time.Now()
 	resp, err := h.lookup(ctx, q.Name, q.Qtype, r)
+	m.lookupDuration.Record(ctx, time.Since(start).Seconds())
 	if err != nil {
+		m.errors.Add(ctx, 1, metric.WithAttributes(qtypeAttr))
 		span.AddEvent("failed", trace.WithAttributes(
 			attribute.String("error", err.Error()),
 		))
@@ -89,10 +106,12 @@ func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		h.log().Error("dns lookup failed", zap.Error(err))
 		msg := new(dns.Msg)
 		msg.SetRcode(r, dns.RcodeServerFailure)
+		recordResponse(m, ctx, typeStr, msg.Rcode)
 		writeAnswer(w, msg, span)
 		return
 	}
 	h.cacheResponse(ctx, r, resp)
+	recordResponse(m, ctx, typeStr, resp.Rcode)
 	writeAnswer(w, resp, span)
 }
 

@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/miekg/dns"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/fmotalleb/hermes/models"
 )
@@ -21,6 +23,10 @@ func (h *handler) hijack(ctx context.Context, qname string, qtype uint16, req *d
 	if !ok {
 		return nil, false
 	}
+
+	h.m().hijacks.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("policy", hr.Policy),
+	))
 
 	switch hr.Policy {
 	case models.HijackPolicyBlock:

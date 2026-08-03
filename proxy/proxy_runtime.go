@@ -26,10 +26,11 @@ type Proxy struct {
 	Timeout    time.Duration
 	ProxyAddr  *url.URL
 
-	logger *zap.Logger
-	cache  cache.Cache
-	db     queries.DB
-	bus    pubsub.Bus
+	logger  *zap.Logger
+	cache   cache.Cache
+	db      queries.DB
+	bus     pubsub.Bus
+	metrics *proxyMetrics
 }
 
 const allowedHostCachePrefix = "proxy:allowed-host:"
@@ -58,6 +59,7 @@ func NewProxy(listenAddr string, httpPorts, tlsPorts []string, timeout time.Dura
 		cache:      c,
 		db:         db,
 		bus:        bus,
+		metrics:    newProxyMetrics(),
 	}, nil
 }
 

@@ -40,6 +40,7 @@ func (h *handler) forward( //nolint:gocyclo,funlen // comprehensive multi-protoc
 	defer span.End()
 
 	span.SetAttributes(attribute.String("forward_zone_id", forwardZoneID))
+	m := h.m()
 
 	fz, err := h.findForwardZone(
 		ctx,
@@ -171,6 +172,7 @@ func (h *handler) forward( //nolint:gocyclo,funlen // comprehensive multi-protoc
 				attribute.Int("index", i),
 				attribute.String("protocol", addr.Protocol),
 			))
+			recordForwardAttempt(m, ctx, addr.Protocol, "unsupported")
 			continue
 		}
 
@@ -179,6 +181,7 @@ func (h *handler) forward( //nolint:gocyclo,funlen // comprehensive multi-protoc
 				attribute.Int("index", i),
 				attribute.String("error", exchangeErr.Error()),
 			))
+			recordForwardAttempt(m, ctx, addr.Protocol, "error")
 			continue
 		}
 
@@ -186,6 +189,7 @@ func (h *handler) forward( //nolint:gocyclo,funlen // comprehensive multi-protoc
 			span.AddEvent("forward returned empty response", trace.WithAttributes(
 				attribute.Int("index", i),
 			))
+			recordForwardAttempt(m, ctx, addr.Protocol, "empty")
 			continue
 		}
 
@@ -193,6 +197,7 @@ func (h *handler) forward( //nolint:gocyclo,funlen // comprehensive multi-protoc
 			attribute.Int("index", i),
 		))
 		span.SetStatus(codes.Ok, "forwarded")
+		recordForwardAttempt(m, ctx, addr.Protocol, "success")
 		return resp, nil
 	}
 

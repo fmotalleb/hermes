@@ -67,19 +67,23 @@ func (h *httpProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		h.logger.Warn("failed to prepare target host", zap.Error(err))
+		h.recordRequest(h.ctx, "http", "malformed")
 		http.Error(w, "malformed host value, refusing to process request", http.StatusBadRequest)
 		return
 	} else if targetHost == "" {
 		h.logger.Warn("failed to read target host")
+		h.recordRequest(h.ctx, "http", "malformed")
 		http.Error(w, "malformed host value, failed to read the value, refusing to process request", http.StatusBadRequest)
 		return
 	}
 
 	if !h.AllowedHost(h.ctx, targetHost) {
 		h.logger.Warn("hostname rejected", zap.String("hostname", targetHost))
+		h.recordRequest(h.ctx, "http", "blocked")
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
+	h.recordRequest(h.ctx, "http", "allowed")
 
 	h.logger.Debug("HTTP request received",
 		zap.String("method", r.Method),

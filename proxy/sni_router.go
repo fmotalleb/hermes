@@ -61,6 +61,7 @@ func (p *Proxy) serveSNIRouter(ctx context.Context, addr string) error {
 func (p *Proxy) handleClient(ctx context.Context, conn net.Conn, logger *zap.Logger) {
 	serverName, buf, n, err := readSNI(conn, logger)
 	if err != nil {
+		p.recordRequest(ctx, "sni", "error")
 		_ = conn.Close()
 		return
 	}
@@ -70,9 +71,11 @@ func (p *Proxy) handleClient(ctx context.Context, conn net.Conn, logger *zap.Log
 
 	if !p.AllowedHost(ctx, sni) {
 		l.Warn("SNI rejected")
+		p.recordRequest(ctx, "sni", "blocked")
 		_ = conn.Close()
 		return
 	}
+	p.recordRequest(ctx, "sni", "allowed")
 
 	go p.proxyToTarget(ctx, conn, sni, buf, n, l)
 }
